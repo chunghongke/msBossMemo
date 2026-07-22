@@ -62,17 +62,24 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
     }
 
-    /* 玩家大區塊標頭 */
+    /* 玩家大區塊標頭：增加點擊手勢與 hover 效果 */
     .player-header {
       font-size: 18px;
       font-weight: bold;
       color: #1e293b;
-      margin-bottom: 14px;
+      margin-bottom: 0px; /* 預設先設 0，展開始時再動態調整或由內部處理 */
       padding-bottom: 8px;
       border-bottom: 2px solid #e2e8f0;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      cursor: pointer; /* 鼠標變成手型 */
+      user-select: none; /* 防止點擊時選取到文字 */
+      transition: color 0.2s;
+    }
+
+    .player-header:hover {
+      color: #0284c7; /* Hover 時文字變藍 */
     }
 
     /* 玩家內部的角色列表容器 */
@@ -80,6 +87,23 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      margin-top: 14px; /* 與標頭保持距離 */
+    }
+
+    /* 收合狀態：隱藏角色列表與底線 */
+    .player-card.is-collapsed .player-characters {
+      display: none;
+    }
+
+    .player-card.is-collapsed .player-header {
+      border-bottom: none; /* 收合時隱藏分隔線 */
+    }
+
+    /* 展開/收合小箭頭圖示 */
+    .collapse-icon {
+      font-size: 14px;
+      color: #64748b;
+      transition: transform 0.2s;
     }
 
     /* 角色卡片 (橫幅) */
@@ -230,6 +254,8 @@
   <div class="header">
     <h2>🎮 每週 BOSS 攻略備忘錄</h2>
     <div>
+      <button class="btn btn-secondary" onclick="toggleAllPlayers(true)">📁 全部收合</button>
+      <button class="btn btn-secondary" onclick="toggleAllPlayers(false)">📂 全部展開</button>
       <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
       <button class="btn btn-reset" onclick="resetWeeklyStatus()">🔄 每週進度重置</button>
       <button class="btn btn-reset" onclick="clearAllData()">🗑️ 清除快取並重整</button>
@@ -370,11 +396,14 @@ function renderApp() {
   container.innerHTML = "";
 
   // 1. 巡迴每一個玩家大區塊
-  config.players.forEach(p => {
+  config.players.forEach((p, pIdx) => {
+    const playerId = `p_${pIdx}`;
+
     let playerHTML = `
-      <div class="player-card">
-        <div class="player-header">
+      <div class="player-card" id="player-card-${playerId}">
+        <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
           <span>👤 玩家：${p.name}</span>
+          <span class="collapse-icon" id="collapse-icon-${playerId}">▼ 收合</span>
         </div>
         <div class="player-characters">
     `;
@@ -395,7 +424,6 @@ function renderApp() {
 
       // 3. 巡迴 BOSS 網格
       config.bosses.forEach(boss => {
-        // 如果該角色沒有設定要打這個 BOSS 則跳過
         if (c.bossIds && !c.bossIds.includes(boss.id)) {
           return;
         }
@@ -619,6 +647,38 @@ function toggleResetConfig(charId, bossId) {
 
 function closeResetConfigModal() {
   document.getElementById("resetModal").style.display = "none";
+}
+// 切換玩家卡片的展開 / 收合狀態
+function togglePlayerCollapse(playerId) {
+  const card = document.getElementById(`player-card-${playerId}`);
+  const icon = document.getElementById(`collapse-icon-${playerId}`);
+
+  if (!card) return;
+
+  const isCollapsed = card.classList.toggle("is-collapsed");
+
+  // 切換箭頭方向
+  if (icon) {
+    icon.innerText = isCollapsed ? "▲ 展開" : "▼ 收合";
+  }
+}
+
+// 全部收合或全部展開
+function toggleAllPlayers(shouldCollapse) {
+  const cards = document.querySelectorAll('.player-card');
+  cards.forEach(card => {
+    if (shouldCollapse) {
+      card.classList.add('is-collapsed');
+    } else {
+      card.classList.remove('is-collapsed');
+    }
+    
+    // 更新箭頭文字
+    const icon = card.querySelector('.collapse-icon');
+    if (icon) {
+      icon.innerText = shouldCollapse ? "▲ 展開" : "▼ 收合";
+    }
+  });
 }
 
 // 啟動應用程式
