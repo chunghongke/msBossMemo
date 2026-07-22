@@ -293,6 +293,116 @@
       ensureDefaultSingleTeams();
       renderApp();
     });
+
+    // 當前正在編輯的角色 ID 全域變數
+    let currentEditingCharId = null;
+
+    // 1. 打開編輯彈窗並預先勾選已有的 bossIds
+    window.openEditCharBossesModal = function(charId) {
+      currentEditingCharId = charId;
+      const modal = document.getElementById("editCharBossesModal");
+      const titleEl = document.getElementById("editCharTitle");
+      const bossListContainer = document.getElementById("editCharBossList");
+
+      if (!modal || !bossListContainer) return;
+
+      // 搜尋目標角色
+      let targetChar = null;
+      if (window.config.players) {
+        for (const player of window.config.players) {
+          if (player.characters) {
+            const found = player.characters.find(c => c.id === charId);
+            if (found) {
+              targetChar = found;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!targetChar) {
+        alert("找不到該角色資料！");
+        return;
+      }
+
+      titleEl.innerText = `✏️ 編輯 ${targetChar.name} 的 BOSS 清單`;
+
+      // 渲染所有 BOSS 勾選清單，已有的 bossIds 自動打勾
+      bossListContainer.innerHTML = "";
+      if (window.config.bosses && Array.isArray(window.config.bosses)) {
+        window.config.bosses.forEach(boss => {
+          const isChecked = targetChar.bossIds && targetChar.bossIds.includes(boss.id);
+          bossListContainer.innerHTML += `
+            <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="checkbox" class="edit-char-boss-checkbox" value="${boss.id}" ${isChecked ? 'checked' : ''} />
+              ${boss.name}
+            </label>
+          `;
+        });
+      }
+
+      modal.style.display = "flex";
+    };
+
+    // 2. 關閉彈窗
+    window.closeEditCharBossesModal = function() {
+      const modal = document.getElementById("editCharBossesModal");
+      if (modal) modal.style.display = "none";
+      currentEditingCharId = null;
+    };
+
+    // 3. 儲存變更並更新至 Firebase
+    window.saveEditCharBosses = function() {
+      if (!currentEditingCharId) return;
+
+      // 蒐集勾選的 BOSS ID
+      const selectedBossIds = [];
+      const checkboxes = document.querySelectorAll(".edit-char-boss-checkbox:checked");
+      checkboxes.forEach(cb => selectedBossIds.push(cb.value));
+
+      // 在 window.config.players 中尋找並更新該角色的 bossIds
+      let updated = false;
+      if (window.config.players) {
+        for (const player of window.config.players) {
+          if (player.characters) {
+            const targetChar = player.characters.find(c => c.id === currentEditingCharId);
+            if (targetChar) {
+              targetChar.bossIds = selectedBossIds;
+              
+              // 防呆：如果取消勾選了某 BOSS，且該 BOSS 原本在 resetBossIds 中，順便清除
+              if (targetChar.resetBossIds) {
+                targetChar.resetBossIds = targetChar.resetBossIds.filter(bId => selectedBossIds.includes(bId));
+              }
+              
+              updated = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!updated) {
+        alert("更新失敗，找不到該角色！");
+        return;
+      }
+
+      // 寫入 Firebase
+      if (window.db && window.dbRef && window.dbSet) {
+        const playersRef = window.dbRef(window.db, 'players');
+        
+        window.dbSet(playersRef, window.config.players)
+          .then(() => {
+            alert("BOSS 清單更新成功！");
+            window.closeEditCharBossesModal();
+            // 順便刷新重置券 Modal 畫面
+            if (typeof openResetConfigModal === 'function') openResetConfigModal();
+          })
+          .catch(err => {
+            console.error("Firebase 寫入失敗：", err);
+            alert("更新失敗，請檢查權限或網路。");
+          });
+      }
+    };
   </script>
 
   <script>
@@ -400,104 +510,114 @@
 
   // ==================== 畫面渲染邏輯 ====================
   function renderApp() {
-    // 1. 更新下拉選單
-    updateUserSelectOptions();
+      // 1. 更新下拉選單
+      updateUserSelectOptions();
 
-    const container = document.getElementById("characterList");
-    if (!container) return;
-    
-    container.innerHTML = "";
+      const container = document.getElementById("characterList");
+      if (!container) return;
+      
+      container.innerHTML = "";
 
-    if (!window.config.players || !Array.isArray(window.config.players) || window.config.players.length === 0) {
-      container.innerHTML = `<div style="text-align:center; padding: 40px; color: #64748b;">⚠️ 未讀取到玩家設定檔</div>`;
-      return;
-    }
+      if (!window.config.players || !Array.isArray(window.config.players) || window.config.players.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding: 40px; color: #64748b;">⚠️ 未讀取到玩家設定檔</div>`;
+        return;
+      }
 
-    // 2. 🔥 關鍵排序邏輯：複製一份 players 陣列，並將指定使用者排到最前面
-    const primaryUser = getPrimaryUser();
-    const sortedPlayers = [...window.config.players].sort((a, b) => {
-      if (a.name === primaryUser) return -1;
-      if (b.name === primaryUser) return 1;
-      return 0;
-    });
+      // 2. 🔥 關鍵排序邏輯：複製一份 players 陣列，並將指定使用者排到最前面
+      const primaryUser = getPrimaryUser();
+      const sortedPlayers = [...window.config.players].sort((a, b) => {
+        if (a.name === primaryUser) return -1;
+        if (b.name === primaryUser) return 1;
+        return 0;
+      });
 
-    // 3. 使用排序後的 sortedPlayers 進行畫面渲染
-    sortedPlayers.forEach((p, pIdx) => {
-      const playerId = `p_${pIdx}`;
-      const isPrimary = p.name === primaryUser;
+      // 3. 使用排序後的 sortedPlayers 進行畫面渲染
+      sortedPlayers.forEach((p, pIdx) => {
+        const playerId = `p_${pIdx}`;
+        const isPrimary = p.name === primaryUser;
 
-      let playerHTML = `
-        <div class="player-card ${isPrimary ? 'primary-player' : ''}" id="player-card-${playerId}">
-          <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
-            <span>👤 玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}</span>
-            <span class="collapse-icon" id="collapse-icon-${playerId}">▼ 收合</span>
-          </div>
-          <div class="player-characters">
-      `;
-
-      p.characters.forEach(c => {
-        const count = getCharacterCompletedCount(c.id);
-        const isFull = count >= 12;
-
-        playerHTML += `
-          <div class="character-card">
-            <div class="char-header">
-              <div class="char-title">⚔️ ${c.name}</div>
-              <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
+        let playerHTML = `
+          <div class="player-card ${isPrimary ? 'primary-player' : ''}" id="player-card-${playerId}">
+            <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
+              <span>👤 玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}</span>
+              <span class="collapse-icon" id="collapse-icon-${playerId}">▼ 收合</span>
             </div>
-            <div class="boss-grid">
+            <div class="player-characters">
         `;
 
-        window.config.bosses.forEach(boss => {
-          if (c.bossIds && Array.isArray(c.bossIds) && c.bossIds.length > 0 && !c.bossIds.includes(boss.id)) {
-            return;
-          }
+        p.characters.forEach(c => {
+          const count = getCharacterCompletedCount(c.id);
+          const isFull = count >= 12;
 
-          const maxEntries = boss.allowReset ? 2 : 1;
-
-          for (let entry = 1; entry <= maxEntries; entry++) {
-            if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
-              continue;
-            }
-
-            const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
-            const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
-            const team = record && window.store.teams ? window.store.teams[record.teamId] : null;
-
-            if (record && team) {
-              const isCompleted = record.isCompleted;
-              const memberCount = team.memberCharIds.length;
-              const memberNames = team.memberCharIds.map(id => getCharName(id)).join(", ");
-              const displayTeamText = memberCount > 1 ? memberNames : '單人';
-              const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
-
-              playerHTML += `
-                <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
-                    onclick="toggleBossStatus('${recordKey}')"
-                    oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
-                    title="隊伍成員: ${memberNames} (右鍵可編輯隊伍)">
-                  <div class="boss-name">${bossDisplayName}</div>
-                  <div class="party-members">${displayTeamText}</div>
+          playerHTML += `
+            <div class="character-card">
+              <div class="char-header">
+                <div class="char-title" style="display: flex; align-items: center; gap: 6px;">
+                  ⚔️ ${c.name}
+                  <button class="btn-icon" 
+                          onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')" 
+                          title="編輯角色的 BOSS 清單"
+                          style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
+                          onmouseover="this.style.background='#e2e8f0'" 
+                          onmouseout="this.style.background='transparent'">
+                    ✏️
+                  </button>
                 </div>
-              `;
+                <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
+              </div>
+              <div class="boss-grid">
+          `;
+
+          window.config.bosses.forEach(boss => {
+            if (c.bossIds && Array.isArray(c.bossIds) && c.bossIds.length > 0 && !c.bossIds.includes(boss.id)) {
+              return;
             }
-          }
+
+            const maxEntries = boss.allowReset ? 2 : 1;
+
+            for (let entry = 1; entry <= maxEntries; entry++) {
+              if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
+                continue;
+              }
+
+              const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+              const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
+              const team = record && window.store.teams ? window.store.teams[record.teamId] : null;
+
+              if (record && team) {
+                const isCompleted = record.isCompleted;
+                const memberCount = team.memberCharIds.length;
+                const memberNames = team.memberCharIds.map(id => getCharName(id)).join(", ");
+                const displayTeamText = memberCount > 1 ? memberNames : '單人';
+                const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
+
+                playerHTML += `
+                  <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
+                      onclick="toggleBossStatus('${recordKey}')"
+                      oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
+                      title="隊伍成員: ${memberNames} (右鍵可編輯隊伍)">
+                    <div class="boss-name">${bossDisplayName}</div>
+                    <div class="party-members">${displayTeamText}</div>
+                  </div>
+                `;
+              }
+            }
+          });
+
+          playerHTML += `
+              </div>
+            </div>
+          `;
         });
 
         playerHTML += `
             </div>
           </div>
         `;
+
+        container.innerHTML += playerHTML;
       });
-
-      playerHTML += `
-          </div>
-        </div>
-      `;
-
-      container.innerHTML += playerHTML;
-    });
-  }
+    }
 
   // ==================== 狀態切換與重置 ====================
   function toggleBossStatus(recordKey) {
@@ -645,13 +765,13 @@
       modalBody.innerHTML = `<div style="text-align:center; padding: 15px; color: #64748b;">⚠️ 尚未選擇主要玩家或該玩家無角色</div>`;
     } else {
       targetChars.forEach(c => {
-        // 關鍵過濾：該角色有的 BOSS (c.bossIds) 且該 BOSS 支援重置券 (b.allowReset)
+        // 只顯示：該角色 bossIds 有包含 且 支援重置券 (allowReset: true) 的 BOSS
         const availableResetBosses = resetableBosses.filter(b => c.bossIds && c.bossIds.includes(b.id));
 
         let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
         
         if (availableResetBosses.length === 0) {
-          charSection += `<span style="font-size:12px; color:#94a3b8;">（該角色的 bossIds 中沒有支援重置券的 BOSS）</span>`;
+          charSection += `<span style="font-size:12px; color:#94a3b8;">（該角色的 BOSS 清單中沒有支援重置券的項目）</span>`;
         } else {
           availableResetBosses.forEach(b => {
             const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
@@ -763,6 +883,108 @@
       }
     }
   }
+
+  // 打開新增角色 Modal
+  window.openAddCharacterModal = function() {
+    const modal = document.getElementById("addCharacterModal");
+    const playerSelect = document.getElementById("newCharPlayerSelect");
+    const bossListContainer = document.getElementById("newCharBossList");
+    const nameInput = document.getElementById("newCharNameInput");
+
+    if (!modal || !playerSelect || !bossListContainer) return;
+
+    // 清空輸入框
+    nameInput.value = "";
+
+    // 1. 帶入玩家選項 (預設選中 Primary Player)
+    playerSelect.innerHTML = "";
+    const primaryUser = getPrimaryUser();
+    if (window.config.players && Array.isArray(window.config.players)) {
+      window.config.players.forEach(p => {
+        const isSelected = p.name === primaryUser ? "selected" : "";
+        playerSelect.innerHTML += `<option value="${p.name}" ${isSelected}>${p.name}</option>`;
+      });
+    }
+
+    // 2. 渲染所有 BOSS 勾選清單
+    bossListContainer.innerHTML = "";
+    if (window.config.bosses && Array.isArray(window.config.bosses)) {
+      window.config.bosses.forEach(boss => {
+        bossListContainer.innerHTML += `
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" class="new-char-boss-checkbox" value="${boss.id}" />
+            ${boss.name}
+          </label>
+        `;
+      });
+    }
+
+    modal.style.display = "flex";
+  };
+
+  // 關閉 Modal
+  window.closeAddCharacterModal = function() {
+    const modal = document.getElementById("addCharacterModal");
+    if (modal) modal.style.display = "none";
+  };
+
+  // 3. 儲存新角色至 Firebase
+  window.submitNewCharacter = function() {
+    const playerName = document.getElementById("newCharPlayerSelect").value;
+    const charName = document.getElementById("newCharNameInput").value.trim();
+
+    if (!charName) {
+      alert("請輸入角色名稱！");
+      return;
+    }
+
+    // 1. 蒐集勾選的 bossIds
+    const selectedBossIds = [];
+    const checkboxes = document.querySelectorAll(".new-char-boss-checkbox:checked");
+    checkboxes.forEach(cb => selectedBossIds.push(cb.value));
+
+    // 2. 找到對應玩家
+    const playerIndex = window.config.players.findIndex(p => p.name === playerName);
+    if (playerIndex === -1) {
+      alert("找不到對應的玩家！");
+      return;
+    }
+
+    // 產生獨一無二的角色 ID (例如 char_p2_1710000000000)
+    const newCharId = `char_p${playerIndex + 1}_${Date.now()}`;
+
+    // 構建符合 Firebase 結構的角色物件
+    const newCharacter = {
+      id: newCharId,
+      name: charName,
+      bossIds: selectedBossIds,
+      resetBossIds: []
+    };
+
+    // 確保 characters 陣列存在並推入新角色
+    if (!window.config.players[playerIndex].characters) {
+      window.config.players[playerIndex].characters = [];
+    }
+    window.config.players[playerIndex].characters.push(newCharacter);
+
+    // 3. 專用 Firebase 寫入邏輯（使用宣告好的 window.db, window.dbRef, window.dbSet）
+    if (window.db && window.dbRef && window.dbSet) {
+      const playersRef = window.dbRef(window.db, 'players');
+      
+      window.dbSet(playersRef, window.config.players)
+        .then(() => {
+          alert(`成功為 ${playerName} 新增角色：${charName}！`);
+          window.closeAddCharacterModal();
+        })
+        .catch(err => {
+          console.error("Firebase 寫入失敗：", err);
+          alert("新增失敗，請檢查權限或網路連線。");
+        });
+    } else {
+      console.error("Firebase 實例未成功初始化 (window.db/dbSet 未載入)");
+      alert("資料庫連線失敗，請重新整理頁面。");
+    }
+  };
   </script>
 </head>
 <body>
@@ -775,6 +997,7 @@
       <select id="userSelect" onchange="changePrimaryUser(this.value)" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;">
         <!-- 選項會由 JS 自動帶入 -->
       </select>
+      <button class="btn" onclick="openAddCharacterModal()">➕ 新增角色</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(true)">📁 全部收合</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(false)">📂 全部展開</button>
       <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
@@ -809,5 +1032,51 @@
     </div>
   </div>
 
+  <!-- 新增角色彈窗 -->
+  <div id="addCharacterModal" class="modal" onclick="handleOverlayClick(event, closeAddCharacterModal)">
+    <div class="modal-content" style="max-width: 480px; text-align: left;">
+      <h3 style="margin-top: 0; margin-bottom: 12px; color: #1e293b;">➕ 新增角色</h3>
+      
+      <!-- 1. 選擇玩家 -->
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 14px;">選擇玩家：</label>
+        <select id="newCharPlayerSelect" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;"></select>
+      </div>
+
+      <!-- 2. 輸入角色名稱 -->
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 14px;">角色名稱：</label>
+        <input type="text" id="newCharNameInput" placeholder="例如：KinBata" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px; box-sizing: border-box;" />
+      </div>
+
+      <!-- 3. 勾選 BOSS 清單 -->
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS：</label>
+        <div id="newCharBossList" style="max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;"></div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn btn-secondary" onclick="closeAddCharacterModal()">取消</button>
+        <button class="btn" onclick="submitNewCharacter()">確定新增</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 編輯角色 BOSS 彈窗 -->
+  <div id="editCharBossesModal" class="modal" onclick="handleOverlayClick(event, closeEditCharBossesModal)">
+    <div class="modal-content" style="max-width: 440px; text-align: left;">
+      <h3 id="editCharTitle" style="margin-top: 0; margin-bottom: 12px; color: #1e293b;">✏️ 編輯角色的 BOSS 清單</h3>
+      
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS：</label>
+        <div id="editCharBossList" style="max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;"></div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn btn-secondary" onclick="closeEditCharBossesModal()">取消</button>
+        <button class="btn" onclick="saveEditCharBosses()">儲存變更</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
