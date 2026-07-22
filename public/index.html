@@ -4,40 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>每週 BOSS 攻略備忘錄</title>
-  <script type="module">
-    // 1. 載入 Firebase 核心與 Realtime Database 模組
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-    // 2. 貼上你剛才複製的 firebaseConfig
-    const firebaseConfig = {
-      apiKey: "AIzaSyC6_PrlBgVTbmpDCrWP7KMTAq8RHtNsI-M",
-      authDomain: "msbossmemo-752e3.firebaseapp.com",
-      databaseURL: "https://msbossmemo-752e3-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "msbossmemo-752e3",
-      storageBucket: "msbossmemo-752e3.firebasestorage.app",
-      messagingSenderId: "747420574318",
-      appId: "1:747420574318:web:eff8bdb117a776264cfc7f"
-    };
-
-    // 3. 初始化 Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-
-    // 4. 寫入一筆測試資料（驗證有沒有連線成功）
-    const testRef = ref(db, '/testConnection');
-    set(testRef, {
-      message: "哈囉！成功連線到 Firebase 了！",
-      time: new Date().toLocaleString()
-    }).then(() => {
-      console.log("寫入成功！可以去 Firebase 後台看資料了！");
-    }).catch((error) => {
-      console.error("寫入失敗:", error);
-    });
-  </script>
-  <!-- 載入設定檔 -->
-  <script src="./public/bosses.js"></script>
-  <script src="./public/players.js"></script>
   <style>
     :root {
       --bg-not-completed: #f1f5f9; /* 灰色：未攻略 */
@@ -280,6 +246,439 @@
       text-align: left;
     }
   </style>
+  <!-- 載入原本的靜態設定 (若老闆/BOSS想放雲端，之後隨時能搬過去) -->
+  <script src="./bosses.js"></script>
+  <script src="./players.js"></script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+  // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC6_PrlBgVTbmpDCrWP7KMTAq8RHtNsI-M",
+      authDomain: "msbossmemo-752e3.firebaseapp.com",
+      databaseURL: "https://msbossmemo-752e3-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "msbossmemo-752e3",
+      storageBucket: "msbossmemo-752e3.firebasestorage.app",
+      messagingSenderId: "747420574318",
+      appId: "1:747420574318:web:eff8bdb117a776264cfc7f"
+    };
+
+    // 2. 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // 將資料庫操作掛載到全域，方便原有的 function 呼叫
+    window.db = db;
+    window.dbRef = ref;
+    window.dbSet = set;
+
+    // 3. 全局資料狀態與本地快取
+    window.config = { bosses: [], players: [] };
+    window.store = { teams: {}, weeklyRecords: {} };
+
+    // 4. 監聽 Firebase 雲端資料庫（當雲端有變動時自動觸發）
+    const storeRef = ref(db, '/store');
+    onValue(storeRef, (snapshot) => {
+      const data = snapshot.val();
+      
+      if (data) {
+        window.store = data;
+      } else {
+        // 若雲端是空的，先給予預設值
+        window.store = { teams: {}, weeklyRecords: {} };
+      }
+
+      // 重新戴入 BOSS 與 Player 設定並進行補建與畫面渲染
+      loadConfigAndRender();
+    });
+  </script>
+
+  <script>
+  // ==================== 雲端資料同步函數 ====================
+  function saveStoreToCloud() {
+    if (window.db && window.dbRef && window.dbSet) {
+      const storeRef = window.dbRef(window.db, '/store');
+      window.dbSet(storeRef, window.store)
+        .then(() => console.log("☁️ 雲端同步成功！"))
+        .catch((err) => console.error("❌ 雲端同步失敗:", err));
+    }
+  }
+
+  function loadConfigAndRender() {
+    // 自動相容不同的 bosses.js 變數名稱
+    if (typeof bossConfigData !== 'undefined') window.config.bosses = bossConfigData;
+    else if (typeof bossesData !== 'undefined') window.config.bosses = bossesData;
+    else if (typeof bosses !== 'undefined') window.config.bosses = bosses;
+
+    if (typeof playersData !== 'undefined') {
+      window.config.players = playersData;
+    }
+
+    ensureDefaultSingleTeams();
+    renderApp();
+  }
+
+  function getAllCharacters() {
+    const chars = [];
+    if (!window.config.players) return chars;
+    window.config.players.forEach(p => {
+      if (p.characters) {
+        p.characters.forEach(c => {
+          chars.push({ ...c, playerName: p.name });
+        });
+      }
+    });
+    return chars;
+  }
+
+  function getCharName(charId) {
+    const chars = getAllCharacters();
+    const c = chars.find(item => item.id === charId);
+    return c ? c.name : charId;
+  }
+
+  // 預設為各角色建立單人隊伍
+  function ensureDefaultSingleTeams() {
+    const allChars = getAllCharacters();
+    let updated = false;
+
+    if (!window.config.bosses || window.config.bosses.length === 0) return;
+
+    window.config.bosses.forEach(boss => {
+      const maxEntries = boss.allowReset ? 2 : 1;
+      for (let entry = 1; entry <= maxEntries; entry++) {
+        allChars.forEach(c => {
+          if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
+            return;
+          }
+
+          const defaultTeamId = `single_${c.id}_${boss.id}_${entry}`;
+          const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+
+          if (!window.store.weeklyRecords) window.store.weeklyRecords = {};
+          if (!window.store.teams) window.store.teams = {};
+
+          if (!window.store.weeklyRecords[recordKey]) {
+            window.store.teams[defaultTeamId] = {
+              id: defaultTeamId,
+              memberCharIds: [c.id]
+            };
+            window.store.weeklyRecords[recordKey] = {
+              bossId: boss.id,
+              entryIndex: entry,
+              teamId: defaultTeamId,
+              isCompleted: false
+            };
+            updated = true;
+          }
+        });
+      }
+    });
+
+    // 如果有新增預設單人隊伍，自動同步至 Firebase
+    if (updated) {
+      saveStoreToCloud();
+    }
+  }
+
+  function getCharacterCompletedCount(charId) {
+    let count = 0;
+    if (!window.store.weeklyRecords) return 0;
+    
+    Object.keys(window.store.weeklyRecords).forEach(recordKey => {
+      if (recordKey.startsWith(`rec_${charId}_`)) {
+        const record = window.store.weeklyRecords[recordKey];
+        if (record && record.isCompleted) {
+          count++;
+        }
+      }
+    });
+    return count;
+  }
+
+  // ==================== 畫面渲染邏輯 ====================
+  function renderApp() {
+    const container = document.getElementById("characterList");
+    if (!container) return;
+    
+    container.innerHTML = "";
+
+    if (!window.config.players || window.config.players.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding: 40px; color: #64748b;">⚠️ 未讀取到玩家設定檔 (players.js)</div>`;
+      return;
+    }
+
+    window.config.players.forEach((p, pIdx) => {
+      const playerId = `p_${pIdx}`;
+
+      let playerHTML = `
+        <div class="player-card" id="player-card-${playerId}">
+          <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
+            <span>👤 玩家：${p.name}</span>
+            <span class="collapse-icon" id="collapse-icon-${playerId}">▼ 收合</span>
+          </div>
+          <div class="player-characters">
+      `;
+
+      p.characters.forEach(c => {
+        const count = getCharacterCompletedCount(c.id);
+        const isFull = count >= 12;
+
+        playerHTML += `
+          <div class="character-card">
+            <div class="char-header">
+              <div class="char-title">⚔️ ${c.name}</div>
+              <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
+            </div>
+            <div class="boss-grid">
+        `;
+
+        window.config.bosses.forEach(boss => {
+          if (c.bossIds && Array.isArray(c.bossIds) && c.bossIds.length > 0 && !c.bossIds.includes(boss.id)) {
+            return;
+          }
+
+          const maxEntries = boss.allowReset ? 2 : 1;
+
+          for (let entry = 1; entry <= maxEntries; entry++) {
+            if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
+              continue;
+            }
+
+            const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+            const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
+            const team = record && window.store.teams ? window.store.teams[record.teamId] : null;
+
+            if (record && team) {
+              const isCompleted = record.isCompleted;
+              const memberCount = team.memberCharIds.length;
+              const memberNames = team.memberCharIds.map(id => getCharName(id)).join(", ");
+              const displayTeamText = memberCount > 1 ? memberNames : '單人';
+              const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
+
+              playerHTML += `
+                <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
+                    onclick="toggleBossStatus('${recordKey}')"
+                    oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
+                    title="隊伍成員: ${memberNames} (右鍵可編輯隊伍)">
+                  <div class="boss-name">${bossDisplayName}</div>
+                  <div class="party-members">${displayTeamText}</div>
+                </div>
+              `;
+            }
+          }
+        });
+
+        playerHTML += `
+            </div>
+          </div>
+        `;
+      });
+
+      playerHTML += `
+          </div>
+        </div>
+      `;
+
+      container.innerHTML += playerHTML;
+    });
+  }
+
+  // ==================== 狀態切換與重置 ====================
+  function toggleBossStatus(recordKey) {
+    const record = window.store.weeklyRecords[recordKey];
+    if (!record || !record.teamId) return;
+
+    const team = window.store.teams[record.teamId];
+
+    if (!record.isCompleted && team) {
+      for (const charId of team.memberCharIds) {
+        if (getCharacterCompletedCount(charId) >= 12) {
+          alert(`角色 [${getCharName(charId)}] 本週攻略數量已達 12 隻上限！`);
+          return;
+        }
+      }
+    }
+
+    const nextStatus = !record.isCompleted;
+    Object.values(window.store.weeklyRecords).forEach(r => {
+      if (r.teamId === record.teamId) {
+        r.isCompleted = nextStatus;
+      }
+    });
+
+    // 儲存至雲端 (雲端監聽會自動重新渲染畫面)
+    saveStoreToCloud();
+  }
+
+  function resetWeeklyStatus() {
+    if (confirm("確定要重置本週所有 BOSS 的攻略狀態嗎？(組隊資訊將完整保留)")) {
+      Object.keys(window.store.weeklyRecords).forEach(key => {
+        window.store.weeklyRecords[key].isCompleted = false;
+      });
+      saveStoreToCloud();
+    }
+  }
+
+  function clearAllData() {
+    if (confirm("確定要清除所有雲端資料嗎？\n這將會重置所有人的組隊設定與攻略狀態！")) {
+      window.store = { teams: {}, weeklyRecords: {} };
+      saveStoreToCloud();
+    }
+  }
+
+  // ==================== Modal 與操控邏輯 ====================
+  let editingCharId = null;
+  let editingBossId = null;
+  let editingEntry = 1;
+
+  function openPartyModal(event, charId, bossId, entryIndex) {
+    event.preventDefault();
+    editingCharId = charId;
+    editingBossId = bossId;
+    editingEntry = entryIndex;
+
+    const boss = window.config.bosses.find(b => b.id === bossId);
+    document.getElementById("partyModalTitle").innerText = `組隊設定：${getCharName(charId)} - ${boss.name}`;
+    document.getElementById("partyModalSubtitle").innerText = `該 BOSS 人數上限為 ${boss.maxPartySize} 人 (預設為單人)`;
+
+    const recordKey = `rec_${charId}_${bossId}_${entryIndex}`;
+    const record = window.store.weeklyRecords[recordKey];
+    let currentMembers = [charId];
+
+    if (record && record.teamId && window.store.teams[record.teamId]) {
+      currentMembers = window.store.teams[record.teamId].memberCharIds;
+    }
+
+    const listContainer = document.getElementById("partySelectList");
+    listContainer.innerHTML = "";
+
+    const allChars = getAllCharacters();
+    allChars.forEach(c => {
+      const isChecked = currentMembers.includes(c.id);
+      listContainer.innerHTML += `
+        <label style="cursor:pointer; font-size: 13px;">
+          <input type="checkbox" name="partyChar" value="${c.id}" ${isChecked ? 'checked' : ''}>
+          ${c.name} (${c.playerName})
+        </label>`;
+    });
+
+    document.getElementById("partyModal").style.display = "flex";
+  }
+
+  function savePartyTeam() {
+    const boss = window.config.bosses.find(b => b.id === editingBossId);
+    const checkboxes = document.querySelectorAll('input[name="partyChar"]:checked');
+    let selectedCharIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (selectedCharIds.length === 0) {
+      selectedCharIds = [editingCharId];
+    }
+
+    if (selectedCharIds.length > boss.maxPartySize) {
+      alert(`該 BOSS 人數上限為 ${boss.maxPartySize} 人，你選擇了 ${selectedCharIds.length} 人！`);
+      return;
+    }
+
+    const sortedIds = [...selectedCharIds].sort().join("_");
+    const sharedTeamId = `team_${editingBossId}_${editingEntry}_${sortedIds}`;
+
+    if (!window.store.teams) window.store.teams = {};
+    window.store.teams[sharedTeamId] = { id: sharedTeamId, memberCharIds: selectedCharIds };
+
+    selectedCharIds.forEach(cId => {
+      const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
+      const oldRecord = window.store.weeklyRecords[recKey];
+      window.store.weeklyRecords[recKey] = {
+        bossId: editingBossId,
+        entryIndex: editingEntry,
+        teamId: sharedTeamId,
+        isCompleted: oldRecord ? oldRecord.isCompleted : false
+      };
+    });
+
+    saveStoreToCloud();
+    closePartyModal();
+  }
+
+  function closePartyModal() {
+    document.getElementById("partyModal").style.display = "none";
+  }
+
+  function openResetConfigModal() {
+    const modalBody = document.getElementById("modalBody");
+    modalBody.innerHTML = "";
+
+    const resetableBosses = window.config.bosses.filter(b => b.allowReset);
+    const allChars = getAllCharacters();
+
+    allChars.forEach(c => {
+      let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
+      resetableBosses.forEach(b => {
+        const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
+        charSection += `
+          <label style="font-size:13px; margin-right:10px; cursor:pointer;">
+            <input type="checkbox" onchange="toggleResetConfig('${c.id}', '${b.id}')" ${isChecked ? 'checked' : ''}>
+            ${b.name}
+          </label>`;
+      });
+      charSection += `</div><hr style="border:0; border-top:1px #eee solid; margin:6px 0;">`;
+      modalBody.innerHTML += charSection;
+    });
+
+    document.getElementById("resetModal").style.display = "flex";
+  }
+
+  function toggleResetConfig(charId, bossId) {
+    window.config.players.forEach(p => {
+      p.characters.forEach(c => {
+        if (c.id === charId) {
+          if (!c.resetBossIds) c.resetBossIds = [];
+          const index = c.resetBossIds.indexOf(bossId);
+          if (index > -1) {
+            c.resetBossIds.splice(index, 1);
+          } else {
+            c.resetBossIds.push(bossId);
+          }
+        }
+      });
+    });
+    renderApp();
+  }
+
+  function closeResetConfigModal() {
+    document.getElementById("resetModal").style.display = "none";
+  }
+
+  function togglePlayerCollapse(playerId) {
+    const card = document.getElementById(`player-card-${playerId}`);
+    const icon = document.getElementById(`collapse-icon-${playerId}`);
+
+    if (!card) return;
+    const isCollapsed = card.classList.toggle("is-collapsed");
+    if (icon) {
+      icon.innerText = isCollapsed ? "▲ 展開" : "▼ 收合";
+    }
+  }
+
+  function toggleAllPlayers(shouldCollapse) {
+    const cards = document.querySelectorAll('.player-card');
+    cards.forEach(card => {
+      if (shouldCollapse) {
+        card.classList.add('is-collapsed');
+      } else {
+        card.classList.remove('is-collapsed');
+      }
+      
+      const icon = card.querySelector('.collapse-icon');
+      if (icon) {
+        icon.innerText = shouldCollapse ? "▲ 展開" : "▼ 收合";
+      }
+    });
+  }
+  </script>
 </head>
 <body>
 
@@ -320,406 +719,6 @@
     </div>
   </div>
 
-<script>
-const STORAGE_KEY = "boss_memo_store_v3";
-const CONFIG_KEY = "boss_memo_config_v3";
 
-let config = {
-  bosses: [],
-  players: []
-};
-
-let store = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
-  teams: {},         // { team_key: { id, memberCharIds: [] } }
-  weeklyRecords: {}  // { "rec_charId_bossId_entry": { bossId, entryIndex, teamId, isCompleted } }
-};
-
-// ==================== 1. 初始化 ====================
-function initApp() {
-  // 1. 載入 BOSS 設定
-  if (typeof bossesData !== 'undefined') {
-    config.bosses = bossesData;
-  }
-  
-  // 2. 載入玩家設定
-  if (typeof playersData !== 'undefined') {
-    config.players = playersData;
-  }
-
-  ensureDefaultSingleTeams();
-  renderApp();
-}
-
-function saveStore() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-}
-
-function saveConfig() {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-}
-
-// 取得所有角色的清單
-function getAllCharacters() {
-  const chars = [];
-  config.players.forEach(p => {
-    p.characters.forEach(c => {
-      chars.push({ ...c, playerName: p.name });
-    });
-  });
-  return chars;
-}
-
-function getCharName(charId) {
-  const chars = getAllCharacters();
-  const c = chars.find(item => item.id === charId);
-  return c ? c.name : charId;
-}
-
-// 預設為各角色建立單人隊伍
-function ensureDefaultSingleTeams() {
-  const allChars = getAllCharacters();
-  let updated = false;
-
-  config.bosses.forEach(boss => {
-    const maxEntries = boss.allowReset ? 2 : 1;
-    for (let entry = 1; entry <= maxEntries; entry++) {
-      allChars.forEach(c => {
-        if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
-          return;
-        }
-
-        const defaultTeamId = `single_${c.id}_${boss.id}_${entry}`;
-        const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
-
-        if (!store.weeklyRecords[recordKey]) {
-          store.teams[defaultTeamId] = {
-            id: defaultTeamId,
-            memberCharIds: [c.id]
-          };
-          store.weeklyRecords[recordKey] = {
-            bossId: boss.id,
-            entryIndex: entry,
-            teamId: defaultTeamId,
-            isCompleted: false
-          };
-          updated = true;
-        }
-      });
-    }
-  });
-
-  if (updated) saveStore();
-}
-
-// 計算角色總通關次數
-function getCharacterCompletedCount(charId) {
-  let count = 0;
-  Object.keys(store.weeklyRecords).forEach(recordKey => {
-    if (recordKey.startsWith(`rec_${charId}_`)) {
-      const record = store.weeklyRecords[recordKey];
-      if (record && record.isCompleted) {
-        count++;
-      }
-    }
-  });
-  return count;
-}
-
-// ==================== 2. 畫面渲染 ====================
-function renderApp() {
-  ensureDefaultSingleTeams();
-  
-  const container = document.getElementById("characterList");
-  container.innerHTML = "";
-
-  // 1. 巡迴每一個玩家大區塊
-  config.players.forEach((p, pIdx) => {
-    const playerId = `p_${pIdx}`;
-
-    let playerHTML = `
-      <div class="player-card" id="player-card-${playerId}">
-        <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
-          <span>👤 玩家：${p.name}</span>
-          <span class="collapse-icon" id="collapse-icon-${playerId}">▼ 收合</span>
-        </div>
-        <div class="player-characters">
-    `;
-
-    // 2. 巡迴該玩家底下的所有角色
-    p.characters.forEach(c => {
-      const count = getCharacterCompletedCount(c.id);
-      const isFull = count >= 12;
-
-      playerHTML += `
-        <div class="character-card">
-          <div class="char-header">
-            <div class="char-title">⚔️ ${c.name}</div>
-            <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
-          </div>
-          <div class="boss-grid">
-      `;
-
-      // 3. 巡迴 BOSS 網格
-      config.bosses.forEach(boss => {
-        if (c.bossIds && !c.bossIds.includes(boss.id)) {
-          return;
-        }
-
-        const maxEntries = boss.allowReset ? 2 : 1;
-
-        for (let entry = 1; entry <= maxEntries; entry++) {
-          if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
-            continue;
-          }
-
-          const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
-          const record = store.weeklyRecords[recordKey];
-          const team = record ? store.teams[record.teamId] : null;
-
-          if (record && team) {
-            const isCompleted = record.isCompleted;
-            const memberCount = team.memberCharIds.length;
-            const memberNames = team.memberCharIds.map(id => getCharName(id)).join(", ");
-            const displayTeamText = memberCount > 1 ? memberNames : '單人';
-            const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
-
-            playerHTML += `
-              <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
-                   onclick="toggleBossStatus('${recordKey}')"
-                   oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
-                   title="隊伍成員: ${memberNames} (右鍵可編輯隊伍)">
-                <div class="boss-name">${bossDisplayName}</div>
-                <div class="party-members">${displayTeamText}</div>
-              </div>
-            `;
-          }
-        }
-      });
-
-      playerHTML += `
-          </div>
-        </div>
-      `;
-    });
-
-    playerHTML += `
-        </div>
-      </div>
-    `;
-
-    container.innerHTML += playerHTML;
-  });
-}
-
-// ==================== 3. 狀態切換與重置 ====================
-// 切換 BOSS 攻略狀態 (已支援重置前後跟不同人組隊)
-function toggleBossStatus(recordKey) {
-  const record = store.weeklyRecords[recordKey];
-  if (!record || !record.teamId) return;
-
-  const team = store.teams[record.teamId];
-
-  // 1. 檢查隊友是否已經達到 12 隻上限
-  if (!record.isCompleted && team) {
-    for (const charId of team.memberCharIds) {
-      if (getCharacterCompletedCount(charId) >= 12) {
-        alert(`角色 [${getCharName(charId)}] 本週攻略數量已達 12 隻上限！`);
-        return;
-      }
-    }
-  }
-
-  // 2. 精確連動：只同步「綁定同一個 teamId」的隊友紀錄
-  const nextStatus = !record.isCompleted;
-  Object.values(store.weeklyRecords).forEach(r => {
-    // 只要 teamId 相同（包含 BossId 與 entryIndex），就會同步變更
-    if (r.teamId === record.teamId) {
-      r.isCompleted = nextStatus;
-    }
-  });
-
-  saveStore();
-  renderApp();
-}
-
-function resetWeeklyStatus() {
-  if (confirm("確定要重置本週所有 BOSS 的攻略狀態嗎？(組隊資訊將完整保留)")) {
-    Object.keys(store.weeklyRecords).forEach(key => {
-      store.weeklyRecords[key].isCompleted = false;
-    });
-    saveStore();
-    renderApp();
-  }
-}
-
-// 清除 localStorage快取並重新載入
-function clearAllData() {
-  if (confirm("確定要清除所有快取資料嗎？\n這將會重置所有組隊設定與攻略狀態！")) {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(CONFIG_KEY);
-    location.reload();
-  }
-}
-
-// ==================== 4. 組隊 Modal 邏輯 ====================
-let editingCharId = null;
-let editingBossId = null;
-let editingEntry = 1;
-
-function openPartyModal(event, charId, bossId, entryIndex) {
-  event.preventDefault();
-  editingCharId = charId;
-  editingBossId = bossId;
-  editingEntry = entryIndex;
-
-  const boss = config.bosses.find(b => b.id === bossId);
-  document.getElementById("partyModalTitle").innerText = `組隊設定：${getCharName(charId)} - ${boss.name}`;
-  document.getElementById("partyModalSubtitle").innerText = `該 BOSS 人數上限為 ${boss.maxPartySize} 人 (預設為單人)`;
-
-  const recordKey = `rec_${charId}_${bossId}_${entryIndex}`;
-  const record = store.weeklyRecords[recordKey];
-  let currentMembers = [charId];
-
-  if (record && record.teamId && store.teams[record.teamId]) {
-    currentMembers = store.teams[record.teamId].memberCharIds;
-  }
-
-  const listContainer = document.getElementById("partySelectList");
-  listContainer.innerHTML = "";
-
-  const allChars = getAllCharacters();
-  allChars.forEach(c => {
-    const isChecked = currentMembers.includes(c.id);
-    listContainer.innerHTML += `
-      <label style="cursor:pointer; font-size: 13px;">
-        <input type="checkbox" name="partyChar" value="${c.id}" ${isChecked ? 'checked' : ''}>
-        ${c.name} (${c.playerName})
-      </label>`;
-  });
-
-  document.getElementById("partyModal").style.display = "flex";
-}
-
-function savePartyTeam() {
-  const boss = config.bosses.find(b => b.id === editingBossId);
-  const checkboxes = document.querySelectorAll('input[name="partyChar"]:checked');
-  let selectedCharIds = Array.from(checkboxes).map(cb => cb.value);
-
-  if (selectedCharIds.length === 0) {
-    selectedCharIds = [editingCharId];
-  }
-
-  if (selectedCharIds.length > boss.maxPartySize) {
-    alert(`該 BOSS 人數上限為 ${boss.maxPartySize} 人，你選擇了 ${selectedCharIds.length} 人！`);
-    return;
-  }
-
-  const sortedIds = [...selectedCharIds].sort().join("_");
-  const sharedTeamId = `team_${editingBossId}_${editingEntry}_${sortedIds}`;
-
-  store.teams[sharedTeamId] = { id: sharedTeamId, memberCharIds: selectedCharIds };
-
-  selectedCharIds.forEach(cId => {
-    const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
-    const oldRecord = store.weeklyRecords[recKey];
-    store.weeklyRecords[recKey] = {
-      bossId: editingBossId,
-      entryIndex: editingEntry,
-      teamId: sharedTeamId,
-      isCompleted: oldRecord ? oldRecord.isCompleted : false
-    };
-  });
-
-  saveStore();
-  closePartyModal();
-  renderApp();
-}
-
-function closePartyModal() {
-  document.getElementById("partyModal").style.display = "none";
-}
-
-// ==================== 5. 重置券 Modal 邏輯 ====================
-function openResetConfigModal() {
-  const modalBody = document.getElementById("modalBody");
-  modalBody.innerHTML = "";
-
-  const resetableBosses = config.bosses.filter(b => b.allowReset);
-  const allChars = getAllCharacters();
-
-  allChars.forEach(c => {
-    let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
-    resetableBosses.forEach(b => {
-      const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
-      charSection += `
-        <label style="font-size:13px; margin-right:10px; cursor:pointer;">
-          <input type="checkbox" onchange="toggleResetConfig('${c.id}', '${b.id}')" ${isChecked ? 'checked' : ''}>
-          ${b.name}
-        </label>`;
-    });
-    charSection += `</div><hr style="border:0; border-top:1px #eee solid; margin:6px 0;">`;
-    modalBody.innerHTML += charSection;
-  });
-
-  document.getElementById("resetModal").style.display = "flex";
-}
-
-function toggleResetConfig(charId, bossId) {
-  config.players.forEach(p => {
-    p.characters.forEach(c => {
-      if (c.id === charId) {
-        if (!c.resetBossIds) c.resetBossIds = [];
-        const index = c.resetBossIds.indexOf(bossId);
-        if (index > -1) {
-          c.resetBossIds.splice(index, 1);
-        } else {
-          c.resetBossIds.push(bossId);
-        }
-      }
-    });
-  });
-  saveConfig();
-  renderApp();
-}
-
-function closeResetConfigModal() {
-  document.getElementById("resetModal").style.display = "none";
-}
-// 切換玩家卡片的展開 / 收合狀態
-function togglePlayerCollapse(playerId) {
-  const card = document.getElementById(`player-card-${playerId}`);
-  const icon = document.getElementById(`collapse-icon-${playerId}`);
-
-  if (!card) return;
-
-  const isCollapsed = card.classList.toggle("is-collapsed");
-
-  // 切換箭頭方向
-  if (icon) {
-    icon.innerText = isCollapsed ? "▲ 展開" : "▼ 收合";
-  }
-}
-
-// 全部收合或全部展開
-function toggleAllPlayers(shouldCollapse) {
-  const cards = document.querySelectorAll('.player-card');
-  cards.forEach(card => {
-    if (shouldCollapse) {
-      card.classList.add('is-collapsed');
-    } else {
-      card.classList.remove('is-collapsed');
-    }
-    
-    // 更新箭頭文字
-    const icon = card.querySelector('.collapse-icon');
-    if (icon) {
-      icon.innerText = shouldCollapse ? "▲ 展開" : "▼ 收合";
-    }
-  });
-}
-
-// 啟動應用程式
-initApp();
-</script>
 </body>
 </html>
