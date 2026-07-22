@@ -1147,6 +1147,61 @@
     const isDark = document.documentElement.classList.contains("dark-mode");
     updateThemeButton(isDark);
   });
+
+  // ==========================================
+  // 新增玩家邏輯 (搭配 Firebase Realtime Database)
+  // ==========================================
+
+  function openAddPlayerModal() {
+    document.getElementById("newPlayerName").value = "";
+    document.getElementById("addPlayerModal").style.display = "flex";
+  }
+
+  function closeAddPlayerModal() {
+    document.getElementById("addPlayerModal").style.display = "none";
+  }
+
+  async function submitAddPlayer() {
+    const playerName = document.getElementById("newPlayerName").value.trim();
+
+    if (!playerName) {
+      alert("請輸入玩家名稱！");
+      return;
+    }
+
+    // 1. 取得當前的 players 陣列 (若無則預設為空陣列)
+    const currentPlayers = window.config.players || [];
+
+    // 2. 檢查名稱是否重複
+    const isExist = currentPlayers.some(p => p.name === playerName);
+    if (isExist) {
+      alert("該玩家名稱已存在！");
+      return;
+    }
+
+    // 3. 建立新玩家物件
+    const newPlayer = {
+      name: playerName,
+      characters: [] // 初始角色陣列為空
+    };
+
+    // 4. 產生更新後的玩家列表
+    const updatedPlayers = [...currentPlayers, newPlayer];
+
+    try {
+      // 5. 將新的 players 陣列寫入 Firebase 的 '/players' 路徑
+      const playersRef = window.dbRef(window.db, '/players');
+      await window.dbSet(playersRef, updatedPlayers);
+
+      // 成功寫入後關閉 Modal
+      // 注意：不需要手動呼叫 renderApp()，因為 onValue(rootRef) 會自動被觸發並重繪！
+      closeAddPlayerModal();
+      
+    } catch (error) {
+      console.error("寫入 Firebase 失敗：", error);
+      alert("新增玩家失敗，請稍後再試！");
+    }
+  }
   </script>
 </head>
 <body>
@@ -1160,6 +1215,7 @@
         <!-- 選項會由 JS 自動帶入 -->
       </select>
       <button class="btn" onclick="openAddCharacterModal()">➕ 新增角色</button>
+      <button class="btn" onclick="openAddPlayerModal()">+ 新增玩家</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(true)">📁 全部收合</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(false)">📂 全部展開</button>
       <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
@@ -1240,6 +1296,21 @@
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn btn-secondary" onclick="closeEditCharBossesModal()">取消</button>
         <button class="btn" onclick="saveEditCharBosses()">儲存變更</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增玩家 Modal -->
+  <div id="addPlayerModal" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-top: 0;">新增玩家</h3>
+      <div style="margin: 15px 0;">
+        <label style="display:block; margin-bottom:5px; text-align:left; font-size:14px;">玩家名稱：</label>
+        <input type="text" id="newPlayerName" placeholder="例如：巴塔" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px;">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn-secondary" onclick="closeAddPlayerModal()">取消</button>
+        <button class="btn" onclick="submitAddPlayer()">確認新增</button>
       </div>
     </div>
   </div>
