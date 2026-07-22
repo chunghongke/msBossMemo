@@ -902,14 +902,17 @@
     if (window.config.players && Array.isArray(window.config.players)) {
       window.config.players.forEach(p => {
         const isSelected = p.name === primaryUser ? "selected" : "";
-        playerSelect.innerHTML += `<option value="${p.name}" ${isSelected}>${p.name}</option>`;
+        playerSelect.innerHTML += `<option value="${p.name}" ${isSelected}>👤 ${p.name}</option>`;
       });
     }
 
     // 2. 渲染所有 BOSS 勾選清單
     bossListContainer.innerHTML = "";
     if (window.config.bosses && Array.isArray(window.config.bosses)) {
-      window.config.bosses.forEach(boss => {
+      // slice() 複製一份陣列避免影響原始 window.config.bosses 順序，再用 reverse() 倒序
+      const reversedBosses = window.config.bosses.slice().reverse();
+      
+      reversedBosses.forEach(boss => {
         bossListContainer.innerHTML += `
           <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
             <input type="checkbox" class="new-char-boss-checkbox" value="${boss.id}" />
