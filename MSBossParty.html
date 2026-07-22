@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>每週 BOSS 攻略備忘錄</title>
   <!-- 載入設定檔 -->
-  <script src="./config.js"></script>
+  <script src="./bosses.js"></script>
+  <script src="./players.js"></script>
   <style>
     :root {
       --bg-not-completed: #f1f5f9; /* 灰色：未攻略 */
@@ -292,7 +293,10 @@
 const STORAGE_KEY = "boss_memo_store_v3";
 const CONFIG_KEY = "boss_memo_config_v3";
 
-let config = null;
+let config = {
+  bosses: [],
+  players: []
+};
 
 let store = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
   teams: {},         // { team_key: { id, memberCharIds: [] } }
@@ -301,14 +305,16 @@ let store = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
 
 // ==================== 1. 初始化 ====================
 function initApp() {
-  const localConfig = localStorage.getItem(CONFIG_KEY);
-  if (localConfig) {
-    config = JSON.parse(localConfig);
-  } else {
-    config = defaultConfigData;
-    saveConfig();
+  // 1. 載入 BOSS 設定
+  if (typeof bossesData !== 'undefined') {
+    config.bosses = bossesData;
   }
   
+  // 2. 載入玩家設定
+  if (typeof playersData !== 'undefined') {
+    config.players = playersData;
+  }
+
   ensureDefaultSingleTeams();
   renderApp();
 }
