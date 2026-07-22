@@ -620,29 +620,56 @@
     document.getElementById("partyModal").style.display = "none";
   }
 
-  function openResetConfigModal() {
+  window.openResetConfigModal = function() {
     const modalBody = document.getElementById("modalBody");
+    if (!modalBody) return;
     modalBody.innerHTML = "";
 
     const resetableBosses = window.config.bosses.filter(b => b.allowReset);
-    const allChars = getAllCharacters();
+    
+    // 1. 取得當前排在最上方的 Primary Player 名字
+    const primaryUser = getPrimaryUser();
 
-    allChars.forEach(c => {
-      let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
-      resetableBosses.forEach(b => {
-        const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
-        charSection += `
-          <label style="font-size:13px; margin-right:10px; cursor:pointer;">
-            <input type="checkbox" onchange="toggleResetConfig('${c.id}', '${b.id}')" ${isChecked ? 'checked' : ''}>
-            ${b.name}
-          </label>`;
+    // 2. 取得所有角色，並過濾出屬性為 Primary Player 的角色
+    const allChars = getAllCharacters();
+    let targetChars = allChars.filter(c => c.playerName === primaryUser);
+
+    // 防呆：如果沒有設定或找不到主要玩家的角色，預設顯示第一個玩家的角色
+    if (targetChars.length === 0 && window.config.players && window.config.players.length > 0) {
+      const firstPlayerName = window.config.players[0].name;
+      targetChars = allChars.filter(c => c.playerName === firstPlayerName);
+    }
+
+    // 3. 渲染過濾後的角色重置券 BOSS 設定
+    if (targetChars.length === 0) {
+      modalBody.innerHTML = `<div style="text-align:center; padding: 15px; color: #64748b;">⚠️ 尚未選擇主要玩家或該玩家無角色</div>`;
+    } else {
+      targetChars.forEach(c => {
+        // 關鍵過濾：該角色有的 BOSS (c.bossIds) 且該 BOSS 支援重置券 (b.allowReset)
+        const availableResetBosses = resetableBosses.filter(b => c.bossIds && c.bossIds.includes(b.id));
+
+        let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
+        
+        if (availableResetBosses.length === 0) {
+          charSection += `<span style="font-size:12px; color:#94a3b8;">（該角色的 bossIds 中沒有支援重置券的 BOSS）</span>`;
+        } else {
+          availableResetBosses.forEach(b => {
+            const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
+            charSection += `
+              <label style="font-size:13px; margin-right:10px; cursor:pointer;">
+                <input type="checkbox" onchange="toggleResetConfig('${c.id}', '${b.id}')" ${isChecked ? 'checked' : ''}>
+                ${b.name}
+              </label>`;
+          });
+        }
+
+        charSection += `</div><hr style="border:0; border-top:1px #eee solid; margin:6px 0;">`;
+        modalBody.innerHTML += charSection;
       });
-      charSection += `</div><hr style="border:0; border-top:1px #eee solid; margin:6px 0;">`;
-      modalBody.innerHTML += charSection;
-    });
+    }
 
     document.getElementById("resetModal").style.display = "flex";
-  }
+  };
 
   function toggleResetConfig(charId, bossId) {
     window.config.players.forEach(p => {
