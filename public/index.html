@@ -246,15 +246,12 @@
       text-align: left;
     }
   </style>
-  <!-- 載入原本的靜態設定 (若老闆/BOSS想放雲端，之後隨時能搬過去) -->
-  <script src="./bosses.js"></script>
-  <script src="./players.js"></script>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-  // Your web app's Firebase configuration
+    // Your web app's Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyC6_PrlBgVTbmpDCrWP7KMTAq8RHtNsI-M",
       authDomain: "msbossmemo-752e3.firebaseapp.com",
@@ -265,33 +262,30 @@
       appId: "1:747420574318:web:eff8bdb117a776264cfc7f"
     };
 
-    // 2. 初始化 Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // 將資料庫操作掛載到全域，方便原有的 function 呼叫
     window.db = db;
     window.dbRef = ref;
     window.dbSet = set;
 
-    // 3. 全局資料狀態與本地快取
     window.config = { bosses: [], players: [] };
     window.store = { teams: {}, weeklyRecords: {} };
 
-    // 4. 監聽 Firebase 雲端資料庫（當雲端有變動時自動觸發）
-    const storeRef = ref(db, '/store');
-    onValue(storeRef, (snapshot) => {
+    // 直接監聽資料庫根目錄 '/'，任何成員、BOSS 或進度更新都會全網同步
+    const rootRef = ref(db, '/');
+    onValue(rootRef, (snapshot) => {
       const data = snapshot.val();
       
       if (data) {
-        window.store = data;
-      } else {
-        // 若雲端是空的，先給予預設值
-        window.store = { teams: {}, weeklyRecords: {} };
+        window.config.bosses = data.bosses || [];
+        window.config.players = data.players || [];
+        window.store = data.store || { teams: {}, weeklyRecords: {} };
       }
 
-      // 重新戴入 BOSS 與 Player 設定並進行補建與畫面渲染
-      loadConfigAndRender();
+      // 當雲端資料拉下來後，進行預設單人隊伍補建與畫面渲染
+      ensureDefaultSingleTeams();
+      renderApp();
     });
   </script>
 
@@ -645,6 +639,12 @@
         }
       });
     });
+
+    // 直接更新雲端的 players 節點
+    if (window.db && window.dbRef && window.dbSet) {
+      const playersRef = window.dbRef(window.db, '/players');
+      window.dbSet(playersRef, window.config.players);
+    }
     renderApp();
   }
 
