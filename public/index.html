@@ -535,8 +535,6 @@
           .then(() => {
             alert("BOSS 清單更新成功！");
             window.closeEditCharBossesModal();
-            // 順便刷新重置券 Modal 畫面
-            if (typeof openResetConfigModal === 'function') openResetConfigModal();
           })
           .catch(err => {
             console.error("Firebase 寫入失敗：", err);
