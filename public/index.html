@@ -915,13 +915,37 @@
   }
 
   function resetWeeklyStatus() {
-    if (confirm("確定要重置本週所有 BOSS 的攻略狀態嗎？(組隊資訊將完整保留)")) {
-      Object.keys(window.store.weeklyRecords).forEach(key => {
-        window.store.weeklyRecords[key].isCompleted = false;
-      });
-      saveStoreToCloud();
+      const primaryUser = getPrimaryUser();
+
+      // 如果沒有選擇主要玩家，給予提示
+      if (!primaryUser) {
+        alert("請先在上方選單選擇「排在最上方」的主要玩家！");
+        return;
+      }
+
+      // 取得主要玩家擁有的所有角色 ID
+      const primaryPlayerObj = window.config.players.find(p => p.name === primaryUser);
+      if (!primaryPlayerObj || !primaryPlayerObj.characters || primaryPlayerObj.characters.length === 0) {
+        alert(`主要玩家 [${primaryUser}] 之下沒有任何角色！`);
+        return;
+      }
+
+      const primaryCharIds = new Set(primaryPlayerObj.characters.map(c => c.id));
+
+      if (confirm(`確定要重置主要玩家 [${primaryUser}] 本週所有角色的 BOSS 攻略狀態嗎？\n(其他玩家進度與組隊資訊將完整保留)`)) {
+        if (window.store && window.store.weeklyRecords) {
+          Object.keys(window.store.weeklyRecords).forEach(key => {
+            // 檢查紀錄 Key 是否對應主要玩家的角色 ID
+            primaryCharIds.forEach(charId => {
+              if (key.startsWith(`rec_${charId}_`)) {
+                window.store.weeklyRecords[key].isCompleted = false;
+              }
+            });
+          });
+        }
+        saveStoreToCloud();
+      }
     }
-  }
 
   // function clearAllData() {
   //   if (confirm("確定要清除所有雲端資料嗎？\n這將會重置所有人的組隊設定與攻略狀態！")) {
