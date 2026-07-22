@@ -707,6 +707,14 @@
                           onmouseout="this.style.background='transparent'">
                     ✏️
                   </button>
+                  <button class="btn-icon"
+                          onclick="event.stopPropagation(); openRenameCharModal('${c.id}', '${c.name.replace(/'/g, "\\'")}')"
+                          title="修改角色名稱"
+                          style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
+                          onmouseover="this.style.background='#e2e8f0'"
+                          onmouseout="this.style.background='transparent'">
+                    🖊️
+                  </button>
                 </div>
                 <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
               </div>
@@ -1362,6 +1370,63 @@
   };
 
   // ==========================================
+  // 編輯角色名稱邏輯
+  // ==========================================
+  let renamingCharId = null;
+
+  window.openRenameCharModal = function(charId, currentName) {
+    renamingCharId = charId;
+    const input = document.getElementById("renameCharInput");
+    if (input) {
+      input.value = currentName;
+      input.select();
+    }
+    document.getElementById("renameCharModal").style.display = "flex";
+    setTimeout(() => { if (input) input.focus(); }, 50);
+  };
+
+  window.closeRenameCharModal = function() {
+    document.getElementById("renameCharModal").style.display = "none";
+    renamingCharId = null;
+  };
+
+  window.submitRenameChar = function() {
+    const newName = document.getElementById("renameCharInput").value.trim();
+    if (!newName) {
+      alert("請輸入新的角色名稱！");
+      return;
+    }
+    if (!renamingCharId) return;
+
+    let updated = false;
+    window.config.players.forEach(p => {
+      p.characters.forEach(c => {
+        if (c.id === renamingCharId) {
+          c.name = newName;
+          updated = true;
+        }
+      });
+    });
+
+    if (!updated) {
+      alert("找不到該角色，更新失敗！");
+      return;
+    }
+
+    if (window.db && window.dbRef && window.dbSet) {
+      const playersRef = window.dbRef(window.db, 'players');
+      window.dbSet(playersRef, window.config.players)
+        .then(() => {
+          window.closeRenameCharModal();
+        })
+        .catch(err => {
+          console.error("Firebase 寫入失敗：", err);
+          alert("更新失敗，請檢查權限或網路連線。");
+        });
+    }
+  };
+
+  // ==========================================
   // 主題記憶與切換邏輯
   // ==========================================
 
@@ -1577,5 +1642,23 @@
       </div>
     </div>
   </div>
+
+  <!-- 編輯角色名稱 Modal -->
+  <div id="renameCharModal" class="modal" onclick="handleOverlayClick(event, closeRenameCharModal)">
+    <div class="modal-content" style="max-width: 360px; text-align: left;">
+      <h3 style="margin-top: 0; margin-bottom: 16px;">🖊️ 修改角色名稱</h3>
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">新角色名稱：</label>
+        <input type="text" id="renameCharInput"
+               style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 14px; box-sizing: border-box; background: var(--input-bg); color: var(--text-main);"
+               onkeypress="if(event.key==='Enter') submitRenameChar()" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn btn-secondary" onclick="closeRenameCharModal()">取消</button>
+        <button class="btn" onclick="submitRenameChar()">儲存名稱</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
