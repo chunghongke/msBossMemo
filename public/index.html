@@ -4,9 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>每週 BOSS 攻略備忘錄</title>
+  <script type="module">
+    // 1. 載入 Firebase 核心與 Realtime Database 模組
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    // 2. 貼上你剛才複製的 firebaseConfig
+    const firebaseConfig = {
+      apiKey: "AIzaSyC6_PrlBgVTbmpDCrWP7KMTAq8RHtNsI-M",
+      authDomain: "msbossmemo-752e3.firebaseapp.com",
+      databaseURL: "https://msbossmemo-752e3-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "msbossmemo-752e3",
+      storageBucket: "msbossmemo-752e3.firebasestorage.app",
+      messagingSenderId: "747420574318",
+      appId: "1:747420574318:web:eff8bdb117a776264cfc7f"
+    };
+
+    // 3. 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // 4. 寫入一筆測試資料（驗證有沒有連線成功）
+    const testRef = ref(db, '/testConnection');
+    set(testRef, {
+      message: "哈囉！成功連線到 Firebase 了！",
+      time: new Date().toLocaleString()
+    }).then(() => {
+      console.log("寫入成功！可以去 Firebase 後台看資料了！");
+    }).catch((error) => {
+      console.error("寫入失敗:", error);
+    });
+  </script>
   <!-- 載入設定檔 -->
-  <script src="./bosses.js"></script>
-  <script src="./players.js"></script>
+  <script src="./public/bosses.js"></script>
+  <script src="./public/players.js"></script>
   <style>
     :root {
       --bg-not-completed: #f1f5f9; /* 灰色：未攻略 */
