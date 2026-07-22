@@ -1151,8 +1151,21 @@
           if (!c.resetBossIds) c.resetBossIds = [];
           const index = c.resetBossIds.indexOf(bossId);
           if (index > -1) {
+            // 取消勾選，直接移除
             c.resetBossIds.splice(index, 1);
           } else {
+            // 即將勾選：計算目前 BOSS 總數（一般刷 + 已有重置刷）
+            const normalCount = c.bossIds ? c.bossIds.length : 0;
+            const resetCount = c.resetBossIds.length; // 目前已勾選的重置刷數量
+            const totalAfterAdd = normalCount + resetCount + 1;
+
+            if (totalAfterAdd > 12) {
+              alert(`角色 [${c.name}] 的 BOSS 攻略數量已達 12 隻上限（一般 ${normalCount} 隻 + 重置 ${resetCount} 隻），無法再新增重置券！`);
+              // 還原 checkbox 狀態
+              const checkboxes = document.querySelectorAll(`input[onchange*="${charId}"][onchange*="${bossId}"]`);
+              checkboxes.forEach(cb => { cb.checked = false; });
+              return;
+            }
             c.resetBossIds.push(bossId);
           }
         }
