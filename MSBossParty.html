@@ -168,7 +168,7 @@
       background: rgba(21, 128, 61, 0.12);
       color: #15803d;
     }
-    
+
     .boss-cell.completed .party-members {
       color: #15803d;
     }
@@ -362,15 +362,15 @@ function renderApp() {
     `;
 
     config.bosses.forEach(boss => {
-          // 核心修正：如果角色沒有設定要打這個 BOSS，就跳過不顯示！
-    if (c.bossIds && !c.bossIds.includes(boss.id)) {
-      return;
-    }
+                // 核心修正：如果角色沒有設定要打這個 BOSS，就跳過不顯示！
+      if (c.bossIds && !c.bossIds.includes(boss.id)) {
+        return;
+      }
 
       const maxEntries = boss.allowReset ? 2 : 1;
 
       for (let entry = 1; entry <= maxEntries; entry++) {
-        // 如果是第二次且該角色無重置券則略過
+                // 如果是第二次且該角色無重置券則略過
         if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
           continue;
         }
@@ -382,17 +382,22 @@ function renderApp() {
         if (record && team) {
           const isCompleted = record.isCompleted;
           const memberCount = team.memberCharIds.length;
-          const teamNames = team.memberCharIds.map(id => getCharName(id)).join(" + ");
-          const badgeText = memberCount > 1 ? `${memberCount}人` : '單人';
-          const bossDisplayName = entry === 2 ? `${boss.name} (重置)` : boss.name;
+          
+          // 取得隊員名稱清單（以逗號分隔）
+          const memberNames = team.memberCharIds.map(id => getCharName(id)).join(", ");
+          
+          // 如果只有 1 人就顯示「單人」，如果有多人就直接顯示成員名字（例如: "幸運星, 小明"）
+          const displayTeamText = memberCount > 1 ? memberNames : '單人';
+          
+          const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
 
           cardHTML += `
             <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
-                 onclick="toggleBossStatus('${recordKey}')"
-                 oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
-                 title="${memberCount > 1 ? '隊伍: ' + teamNames : '單人攻略 (右鍵可編輯隊伍)'}">
+                onclick="toggleBossStatus('${recordKey}')"
+                oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
+                title="隊伍成員: ${memberNames} (右鍵可編輯隊伍)">
               <div class="boss-name">${bossDisplayName}</div>
-              <span class="party-badge">${badgeText}</span>
+              <div class="party-members">${displayTeamText}</div>
             </div>
           `;
         }
