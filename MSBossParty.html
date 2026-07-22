@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>每週 BOSS 攻略備忘錄</title>
+  <!-- 載入設定檔 -->
+  <script src="./config.js"></script>
+  <style>
+    :root {
+      --bg-not-completed: #f1f5f9; /* 灰色：未攻略 */
+      --text-not-completed: #475569;
+      --bg-completed: #dcfce7;     /* 淺綠：已攻略 */
+      --text-completed: #15803d;
+      --border-color: #e2e8f0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 20px;
+      background-color: #f8fafc;
+      color: #334155;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      background: white;
+      padding: 16px 20px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .header h2 { margin: 0; font-size: 20px; }
+
+    .btn {
+      padding: 6px 12px;
+      background-color: #0284c7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+    .btn:hover { background-color: #0369a1; }
+    .btn-reset { background-color: #ef4444; }
+    .btn-reset:hover { background-color: #dc2626; }
+    .btn-secondary { background-color: #64748b; }
+    .btn-secondary:hover { background-color: #475569; }
+
+    /* 角色卡片 (橫幅) */
+    .character-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      border: 1px solid var(--border-color);
+    }
+
+    .char-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f1f5f9;
+    }
+
+    .char-title {
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-tag {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: normal;
+    }
+
+    /* 角色計數標籤 */
+    .char-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      background: #e2e8f0;
+      font-weight: bold;
+      color: #334155;
+    }
+    .char-badge.full {
+      background: #fecaca;
+      color: #991b1b;
+    }
+
+    /* BOSS 網格容器 */
+    .boss-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    /* 修改 BOSS 格子樣式，調整最小高度 */
+    .boss-cell {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease-in-out;
+      min-height: 58px; /* 稍微加大一點高度以放成員名字 */
+      box-sizing: border-box;
+      text-align: center;
+    }
+    /* 隊員名稱標籤樣式 */
+    .party-members {
+      font-size: 10px;
+      margin-top: 3px;
+      color: #64748b;
+      line-height: 1.2;
+      word-break: break-all;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap; /* 太長自動顯示 ... */
+    }
+
+    .boss-cell.not-completed {
+      background-color: var(--bg-not-completed);
+      color: var(--text-not-completed);
+    }
+
+    .boss-cell.completed {
+      background-color: var(--bg-completed);
+      color: var(--text-completed);
+      border-color: #86efac;
+      font-weight: bold;
+    }
+
+    .boss-name {
+      font-size: 12px;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    /* 精簡極小化的組隊標籤 */
+    .party-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.05);
+      color: #64748b;
+      line-height: 1;
+      font-weight: normal;
+    }
+    .boss-cell.completed .party-badge {
+      background: rgba(21, 128, 61, 0.12);
+      color: #15803d;
+    }
+    
+    .boss-cell.completed .party-members {
+      color: #15803d;
+    }
+    /* Modal 彈窗 */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      width: 340px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .party-select-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 16px 0;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>🎮 每週 BOSS 攻略備忘錄</h2>
+    <div>
+      <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
+      <button class="btn btn-reset" onclick="resetWeeklyStatus()">🔄 每週進度重置</button>
+      <button class="btn btn-reset" onclick="clearAllData()">🗑️ 清除快取並重整</button>
+    </div>
+  </div>
+
+  <!-- 角色橫幅列表容器 -->
+  <div id="characterList"></div>
+
+  <!-- 組隊設定彈窗 (右鍵點擊觸發) -->
+  <div id="partyModal" class="modal">
+    <div class="modal-content">
+      <h3 id="partyModalTitle">編輯隊伍成員</h3>
+      <p style="font-size: 12px; color: #64748b;" id="partyModalSubtitle"></p>
+      <div id="partySelectList" class="party-select-list"></div>
+      <div style="display:flex; justify-content:space-between; margin-top:16px;">
+        <button class="btn btn-secondary" onclick="closePartyModal()">取消</button>
+        <button class="btn" onclick="savePartyTeam()">儲存變更</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重置券設定彈窗 -->
+  <div id="resetModal" class="modal">
+    <div class="modal-content">
+      <h3>設定角色的重置券 BOSS</h3>
+      <div id="modalBody"></div>
+      <br>
+      <button class="btn" onclick="closeResetConfigModal()">關閉</button>
+    </div>
+  </div>
+
+<script>
+const STORAGE_KEY = "boss_memo_store_v3";
+const CONFIG_KEY = "boss_memo_config_v3";
+
+let config = null;
+
+let store = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+  teams: {},         // { team_key: { id, memberCharIds: [] } }
+  weeklyRecords: {}  // { "rec_charId_bossId_entry": { bossId, entryIndex, teamId, isCompleted } }
+};
+
+// ==================== 1. 初始化 ====================
+function initApp() {
+  const localConfig = localStorage.getItem(CONFIG_KEY);
+  if (localConfig) {
+    config = JSON.parse(localConfig);
+  } else {
+    config = defaultConfigData;
+    saveConfig();
+  }
+  
+  ensureDefaultSingleTeams();
+  renderApp();
+}
+
+function saveStore() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+
+function saveConfig() {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+}
+
+// 取得所有角色的清單
+function getAllCharacters() {
+  const chars = [];
+  config.players.forEach(p => {
+    p.characters.forEach(c => {
+      chars.push({ ...c, playerName: p.name });
+    });
+  });
+  return chars;
+}
+
+function getCharName(charId) {
+  const chars = getAllCharacters();
+  const c = chars.find(item => item.id === charId);
+  return c ? c.name : charId;
+}
+
+// 預設為各角色建立單人隊伍
+function ensureDefaultSingleTeams() {
+  const allChars = getAllCharacters();
+  let updated = false;
+
+  config.bosses.forEach(boss => {
+    const maxEntries = boss.allowReset ? 2 : 1;
+    for (let entry = 1; entry <= maxEntries; entry++) {
+      allChars.forEach(c => {
+        if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
+          return;
+        }
+
+        const defaultTeamId = `single_${c.id}_${boss.id}_${entry}`;
+        const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+
+        if (!store.weeklyRecords[recordKey]) {
+          store.teams[defaultTeamId] = {
+            id: defaultTeamId,
+            memberCharIds: [c.id]
+          };
+          store.weeklyRecords[recordKey] = {
+            bossId: boss.id,
+            entryIndex: entry,
+            teamId: defaultTeamId,
+            isCompleted: false
+          };
+          updated = true;
+        }
+      });
+    }
+  });
+
+  if (updated) saveStore();
+}
+
+// 計算角色總通關次數
+function getCharacterCompletedCount(charId) {
+  let count = 0;
+  Object.keys(store.weeklyRecords).forEach(recordKey => {
+    if (recordKey.startsWith(`rec_${charId}_`)) {
+      const record = store.weeklyRecords[recordKey];
+      if (record && record.isCompleted) {
+        count++;
+      }
+    }
+  });
+  return count;
+}
+
+// ==================== 2. 畫面渲染 ====================
+function renderApp() {
+
+  ensureDefaultSingleTeams();
+  
+  const container = document.getElementById("characterList");
+  container.innerHTML = "";
+  const allChars = getAllCharacters();
+
+  allChars.forEach(c => {
+    const count = getCharacterCompletedCount(c.id);
+    const isFull = count >= 12;
+
+    let cardHTML = `
+      <div class="character-card">
+        <div class="char-header">
+          <div class="char-title">
+            ${c.name} 
+            <span class="player-tag">(${c.playerName})</span>
+          </div>
+          <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
+        </div>
+        <div class="boss-grid">
+    `;
+
+    config.bosses.forEach(boss => {
+          // 核心修正：如果角色沒有設定要打這個 BOSS，就跳過不顯示！
+    if (c.bossIds && !c.bossIds.includes(boss.id)) {
+      return;
+    }
+
+      const maxEntries = boss.allowReset ? 2 : 1;
+
+      for (let entry = 1; entry <= maxEntries; entry++) {
+        // 如果是第二次且該角色無重置券則略過
+        if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
+          continue;
+        }
+
+        const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+        const record = store.weeklyRecords[recordKey];
+        const team = record ? store.teams[record.teamId] : null;
+
+        if (record && team) {
+          const isCompleted = record.isCompleted;
+          const memberCount = team.memberCharIds.length;
+          const teamNames = team.memberCharIds.map(id => getCharName(id)).join(" + ");
+          const badgeText = memberCount > 1 ? `${memberCount}人` : '單人';
+          const bossDisplayName = entry === 2 ? `${boss.name} (重置)` : boss.name;
+
+          cardHTML += `
+            <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
+                 onclick="toggleBossStatus('${recordKey}')"
+                 oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
+                 title="${memberCount > 1 ? '隊伍: ' + teamNames : '單人攻略 (右鍵可編輯隊伍)'}">
+              <div class="boss-name">${bossDisplayName}</div>
+              <span class="party-badge">${badgeText}</span>
+            </div>
+          `;
+        }
+      }
+    });
+
+    cardHTML += `
+        </div>
+      </div>
+    `;
+
+    container.innerHTML += cardHTML;
+  });
+}
+
+// ==================== 3. 狀態切換與重置 ====================
+// 切換 BOSS 攻略狀態 (已支援重置前後跟不同人組隊)
+function toggleBossStatus(recordKey) {
+  const record = store.weeklyRecords[recordKey];
+  if (!record || !record.teamId) return;
+
+  const team = store.teams[record.teamId];
+
+  // 1. 檢查隊友是否已經達到 12 隻上限
+  if (!record.isCompleted && team) {
+    for (const charId of team.memberCharIds) {
+      if (getCharacterCompletedCount(charId) >= 12) {
+        alert(`角色 [${getCharName(charId)}] 本週攻略數量已達 12 隻上限！`);
+        return;
+      }
+    }
+  }
+
+  // 2. 精確連動：只同步「綁定同一個 teamId」的隊友紀錄
+  const nextStatus = !record.isCompleted;
+  Object.values(store.weeklyRecords).forEach(r => {
+    // 只要 teamId 相同（包含 BossId 與 entryIndex），就會同步變更
+    if (r.teamId === record.teamId) {
+      r.isCompleted = nextStatus;
+    }
+  });
+
+  saveStore();
+  renderApp();
+}
+
+function resetWeeklyStatus() {
+  if (confirm("確定要重置本週所有 BOSS 的攻略狀態嗎？(組隊資訊將完整保留)")) {
+    Object.keys(store.weeklyRecords).forEach(key => {
+      store.weeklyRecords[key].isCompleted = false;
+    });
+    saveStore();
+    renderApp();
+  }
+}
+
+// 清除 localStorage快取並重新載入
+function clearAllData() {
+  if (confirm("確定要清除所有快取資料嗎？\n這將會重置所有組隊設定與攻略狀態！")) {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(CONFIG_KEY);
+    location.reload();
+  }
+}
+
+// ==================== 4. 組隊 Modal 邏輯 ====================
+let editingCharId = null;
+let editingBossId = null;
+let editingEntry = 1;
+
+function openPartyModal(event, charId, bossId, entryIndex) {
+  event.preventDefault();
+  editingCharId = charId;
+  editingBossId = bossId;
+  editingEntry = entryIndex;
+
+  const boss = config.bosses.find(b => b.id === bossId);
+  document.getElementById("partyModalTitle").innerText = `組隊設定：${getCharName(charId)} - ${boss.name}`;
+  document.getElementById("partyModalSubtitle").innerText = `該 BOSS 人數上限為 ${boss.maxPartySize} 人 (預設為單人)`;
+
+  const recordKey = `rec_${charId}_${bossId}_${entryIndex}`;
+  const record = store.weeklyRecords[recordKey];
+  let currentMembers = [charId];
+
+  if (record && record.teamId && store.teams[record.teamId]) {
+    currentMembers = store.teams[record.teamId].memberCharIds;
+  }
+
+  const listContainer = document.getElementById("partySelectList");
+  listContainer.innerHTML = "";
+
+  const allChars = getAllCharacters();
+  allChars.forEach(c => {
+    const isChecked = currentMembers.includes(c.id);
+    listContainer.innerHTML += `
+      <label style="cursor:pointer; font-size: 13px;">
+        <input type="checkbox" name="partyChar" value="${c.id}" ${isChecked ? 'checked' : ''}>
+        ${c.name} (${c.playerName})
+      </label>`;
+  });
+
+  document.getElementById("partyModal").style.display = "flex";
+}
+
+function savePartyTeam() {
+  const boss = config.bosses.find(b => b.id === editingBossId);
+  const checkboxes = document.querySelectorAll('input[name="partyChar"]:checked');
+  let selectedCharIds = Array.from(checkboxes).map(cb => cb.value);
+
+  if (selectedCharIds.length === 0) {
+    selectedCharIds = [editingCharId];
+  }
+
+  if (selectedCharIds.length > boss.maxPartySize) {
+    alert(`該 BOSS 人數上限為 ${boss.maxPartySize} 人，你選擇了 ${selectedCharIds.length} 人！`);
+    return;
+  }
+
+  const sortedIds = [...selectedCharIds].sort().join("_");
+  const sharedTeamId = `team_${editingBossId}_${editingEntry}_${sortedIds}`;
+
+  store.teams[sharedTeamId] = { id: sharedTeamId, memberCharIds: selectedCharIds };
+
+  selectedCharIds.forEach(cId => {
+    const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
+    const oldRecord = store.weeklyRecords[recKey];
+    store.weeklyRecords[recKey] = {
+      bossId: editingBossId,
+      entryIndex: editingEntry,
+      teamId: sharedTeamId,
+      isCompleted: oldRecord ? oldRecord.isCompleted : false
+    };
+  });
+
+  saveStore();
+  closePartyModal();
+  renderApp();
+}
+
+function closePartyModal() {
+  document.getElementById("partyModal").style.display = "none";
+}
+
+// ==================== 5. 重置券 Modal 邏輯 ====================
+function openResetConfigModal() {
+  const modalBody = document.getElementById("modalBody");
+  modalBody.innerHTML = "";
+
+  const resetableBosses = config.bosses.filter(b => b.allowReset);
+  const allChars = getAllCharacters();
+
+  allChars.forEach(c => {
+    let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
+    resetableBosses.forEach(b => {
+      const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
+      charSection += `
+        <label style="font-size:13px; margin-right:10px; cursor:pointer;">
+          <input type="checkbox" onchange="toggleResetConfig('${c.id}', '${b.id}')" ${isChecked ? 'checked' : ''}>
+          ${b.name}
+        </label>`;
+    });
+    charSection += `</div><hr style="border:0; border-top:1px #eee solid; margin:6px 0;">`;
+    modalBody.innerHTML += charSection;
+  });
+
+  document.getElementById("resetModal").style.display = "flex";
+}
+
+function toggleResetConfig(charId, bossId) {
+  config.players.forEach(p => {
+    p.characters.forEach(c => {
+      if (c.id === charId) {
+        if (!c.resetBossIds) c.resetBossIds = [];
+        const index = c.resetBossIds.indexOf(bossId);
+        if (index > -1) {
+          c.resetBossIds.splice(index, 1);
+        } else {
+          c.resetBossIds.push(bossId);
+        }
+      }
+    });
+  });
+  saveConfig();
+  renderApp();
+}
+
+function closeResetConfigModal() {
+  document.getElementById("resetModal").style.display = "none";
+}
+
+// 啟動應用程式
+initApp();
+</script>
+</body>
+</html>
