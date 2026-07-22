@@ -245,6 +245,12 @@
       margin: 16px 0;
       text-align: left;
     }
+
+    /* 自己角色的專屬亮色外框 */
+    .player-card.primary-player {
+      border: 2px solid #3b82f6 !important;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    }
   </style>
 
   <script type="module">
@@ -394,23 +400,36 @@
 
   // ==================== 畫面渲染邏輯 ====================
   function renderApp() {
+    // 1. 更新下拉選單
+    updateUserSelectOptions();
+
     const container = document.getElementById("characterList");
     if (!container) return;
     
     container.innerHTML = "";
 
-    if (!window.config.players || window.config.players.length === 0) {
-      container.innerHTML = `<div style="text-align:center; padding: 40px; color: #64748b;">⚠️ 未讀取到玩家設定檔 (players.js)</div>`;
+    if (!window.config.players || !Array.isArray(window.config.players) || window.config.players.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding: 40px; color: #64748b;">⚠️ 未讀取到玩家設定檔</div>`;
       return;
     }
 
-    window.config.players.forEach((p, pIdx) => {
+    // 2. 🔥 關鍵排序邏輯：複製一份 players 陣列，並將指定使用者排到最前面
+    const primaryUser = getPrimaryUser();
+    const sortedPlayers = [...window.config.players].sort((a, b) => {
+      if (a.name === primaryUser) return -1;
+      if (b.name === primaryUser) return 1;
+      return 0;
+    });
+
+    // 3. 使用排序後的 sortedPlayers 進行畫面渲染
+    sortedPlayers.forEach((p, pIdx) => {
       const playerId = `p_${pIdx}`;
+      const isPrimary = p.name === primaryUser;
 
       let playerHTML = `
-        <div class="player-card" id="player-card-${playerId}">
+        <div class="player-card ${isPrimary ? 'primary-player' : ''}" id="player-card-${playerId}">
           <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
-            <span>👤 玩家：${p.name}</span>
+            <span>👤 玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}</span>
             <span class="collapse-icon" id="collapse-icon-${playerId}">▼ 收合</span>
           </div>
           <div class="player-characters">
@@ -678,13 +697,47 @@
       }
     });
   }
+
+  // 取得當前設定的主要使用者（預設從 LocalStorage 拿）
+  function getPrimaryUser() {
+    return localStorage.getItem("preferred_primary_user") || "";
+  }
+
+  // 當使用者切換選單時觸發
+  function changePrimaryUser(userName) {
+    localStorage.setItem("preferred_primary_user", userName);
+    renderApp(); // 重新渲染畫面
+  }
+
+  // 更新下拉選單的選項內容
+  function updateUserSelectOptions() {
+    const select = document.getElementById("userSelect");
+    if (!select) return;
+
+    const currentPrimary = getPrimaryUser();
+    select.innerHTML = `<option value="">-- 不排序 (預設) --</option>`;
+
+    if (window.config.players && Array.isArray(window.config.players)) {
+      window.config.players.forEach(p => {
+        if (p && p.name) {
+          const isSelected = p.name === currentPrimary ? 'selected' : '';
+          select.innerHTML += `<option value="${p.name}" ${isSelected}>👤 ${p.name}</option>`;
+        }
+      });
+    }
+  }
   </script>
 </head>
 <body>
 
   <div class="header">
     <h2>🎮 每週 BOSS 攻略備忘錄</h2>
-    <div>
+    <div class="controls" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <!-- 新增這個切換選單 -->
+      <label for="userSelect" style="font-weight: bold; font-size: 14px;">排在最上方：</label>
+      <select id="userSelect" onchange="changePrimaryUser(this.value)" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;">
+        <!-- 選項會由 JS 自動帶入 -->
+      </select>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(true)">📁 全部收合</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(false)">📂 全部展開</button>
       <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
