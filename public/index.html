@@ -726,6 +726,16 @@
       });
     }
   }
+
+  // 通用的 Modal 背景點擊關閉函數
+  function handleOverlayClick(event, closeFunction) {
+    // 只有當點擊目標是外層背景（非內部的 modal-content 白框）時才觸發關閉
+    if (event.target === event.currentTarget) {
+      if (typeof closeFunction === 'function') {
+        closeFunction();
+      }
+    }
+  }
   </script>
 </head>
 <body>
@@ -750,7 +760,7 @@
   <div id="characterList"></div>
 
   <!-- 組隊設定彈窗 (右鍵點擊觸發) -->
-  <div id="partyModal" class="modal">
+  <div id="partyModal" class="modal" onclick="handleOverlayClick(event, closePartyModal)">
     <div class="modal-content">
       <h3 id="partyModalTitle">編輯隊伍成員</h3>
       <p style="font-size: 12px; color: #64748b;" id="partyModalSubtitle"></p>
@@ -763,7 +773,7 @@
   </div>
 
   <!-- 重置券設定彈窗 -->
-  <div id="resetModal" class="modal">
+  <div id="resetModal" class="modal" onclick="handleOverlayClick(event, closeResetConfigModal)">
     <div class="modal-content">
       <h3>設定角色的重置券 BOSS</h3>
       <div id="modalBody"></div>
@@ -771,7 +781,6 @@
       <button class="btn" onclick="closeResetConfigModal()">關閉</button>
     </div>
   </div>
-
 
 </body>
 </html>
