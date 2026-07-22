@@ -399,7 +399,8 @@
       if (data) {
         window.config.bosses = data.bosses || [];
         window.config.players = data.players || [];
-        window.store = data.store || { teams: {}, weeklyRecords: {} };
+        window.store = data.store || { teams: {}, weeklyRecords: {}, guests: [] };
+        if (!window.store.guests) window.store.guests = [];
       }
 
       // 當雲端資料拉下來後，進行預設單人隊伍補建與畫面渲染
@@ -585,7 +586,12 @@
   function getCharName(charId) {
     const chars = getAllCharacters();
     const c = chars.find(item => item.id === charId);
-    return c ? c.name : charId;
+    if (c) return c.name;
+    if (window.store && window.store.guests) {
+      const guest = window.store.guests.find(g => g.id === charId);
+      if (guest) return `${guest.name} (G)`;
+    }
+    return charId;
   }
 
   // 預設為各角色建立單人隊伍
@@ -725,8 +731,12 @@
 
               if (record && team) {
                 const isCompleted = record.isCompleted;
-                const memberCount = team.memberCharIds.length;
-                const memberNames = team.memberCharIds.map(id => getCharName(id)).join(", ");
+                const validMemberIds = (team.memberCharIds || []).filter(id => {
+                  if (!id.startsWith("guest_")) return true;
+                  return window.store.guests && window.store.guests.some(g => g.id === id);
+                });
+                const memberCount = validMemberIds.length;
+                const memberNames = validMemberIds.map(id => getCharName(id)).join(", ");
                 const displayTeamText = memberCount > 1 ? memberNames : '單人';
                 const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
 
@@ -767,6 +777,7 @@
 
     if (!record.isCompleted && team) {
       for (const charId of team.memberCharIds) {
+        if (charId.startsWith("guest_")) continue;
         if (getCharacterCompletedCount(charId) >= 12) {
           alert(`角色 [${getCharName(charId)}] 本週攻略數量已達 12 隻上限！`);
           return;
@@ -806,6 +817,106 @@
   let editingBossId = null;
   let editingEntry = 1;
 
+  function renderPartySelectList(initialMemberIds = [], autoCheckGuestId = null, isFreshOpen = false) {
+    const listContainer = document.getElementById("partySelectList");
+    if (!listContainer) return;
+
+    let checkedIds = [];
+    if (isFreshOpen) {
+      checkedIds = [...initialMemberIds];
+    } else {
+      const existingCheckboxes = document.querySelectorAll('input[name="partyChar"]:checked');
+      if (existingCheckboxes.length > 0) {
+        checkedIds = Array.from(existingCheckboxes).map(cb => cb.value);
+      } else {
+        checkedIds = [...initialMemberIds];
+      }
+    }
+
+    if (autoCheckGuestId && !checkedIds.includes(autoCheckGuestId)) {
+      checkedIds.push(autoCheckGuestId);
+    }
+
+    let html = `<div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">⚔️ 正式角色：</div>`;
+    const allChars = getAllCharacters();
+    allChars.forEach(c => {
+      const isChecked = checkedIds.includes(c.id);
+      html += `
+        <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+          <input type="checkbox" name="partyChar" value="${c.id}" ${isChecked ? 'checked' : ''}>
+          ${c.name} (${c.playerName})
+        </label>`;
+    });
+
+    html += `<hr style="border:0; border-top:1px var(--border-color) solid; margin: 12px 0 10px 0;">`;
+    html += `
+      <div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">👤 Guest 臨時隊友：</div>
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <input type="text" id="newGuestNameInput" placeholder="輸入 Guest 名字" style="flex: 1; padding: 5px 8px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);" onkeypress="if(event.key==='Enter'){ event.preventDefault(); addGuestMember(); }" />
+        <button class="btn" style="padding: 4px 10px; font-size: 12px; white-space: nowrap;" onclick="addGuestMember()">➕ 新增</button>
+      </div>
+      <div style="max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+    `;
+
+    if (window.store && window.store.guests && window.store.guests.length > 0) {
+      window.store.guests.forEach(g => {
+        const isChecked = checkedIds.includes(g.id);
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; color: #0284c7;">
+              <input type="checkbox" name="partyChar" value="${g.id}" ${isChecked ? 'checked' : ''}>
+              ${g.name} <span style="font-size:11px; color:var(--text-muted);">(Guest)</span>
+            </label>
+            <button onclick="deleteGuestMember('${g.id}')" style="background: transparent; border: none; cursor: pointer; font-size: 12px; color: #ef4444;" title="刪除 Guest 隊友">🗑️</button>
+          </div>`;
+      });
+    } else {
+      html += `<div style="font-size: 12px; color: var(--text-muted); font-style: italic;">目前尚無 Guest 隊友，可在上方輸入新增。</div>`;
+    }
+    html += `</div>`;
+
+    listContainer.innerHTML = html;
+  }
+
+  window.addGuestMember = function() {
+    const input = document.getElementById("newGuestNameInput");
+    if (!input) return;
+    const guestName = input.value.trim();
+    if (!guestName) {
+      alert("請輸入 Guest 名字！");
+      return;
+    }
+    if (!window.store.guests) window.store.guests = [];
+    
+    let guestObj = window.store.guests.find(g => g.name === guestName);
+    if (!guestObj) {
+      guestObj = { id: `guest_${Date.now()}`, name: guestName };
+      window.store.guests.push(guestObj);
+      saveStoreToCloud();
+    }
+    input.value = "";
+    renderPartySelectList([], guestObj.id);
+  };
+
+  window.deleteGuestMember = function(guestId) {
+    if (!confirm("確定要刪除此 Guest 隊友嗎？(已存在該 Guest 的隊伍將會自動移除此隊友)")) return;
+    if (window.store) {
+      if (window.store.guests) {
+        window.store.guests = window.store.guests.filter(g => g.id !== guestId);
+      }
+      if (window.store.teams) {
+        Object.values(window.store.teams).forEach(team => {
+          if (team && team.memberCharIds) {
+            team.memberCharIds = team.memberCharIds.filter(id => id !== guestId);
+          }
+        });
+      }
+      saveStoreToCloud();
+      renderPartySelectList();
+      renderApp();
+    }
+  };
+
   function openPartyModal(event, charId, bossId, entryIndex) {
     event.preventDefault();
     editingCharId = charId;
@@ -824,18 +935,7 @@
       currentMembers = window.store.teams[record.teamId].memberCharIds;
     }
 
-    const listContainer = document.getElementById("partySelectList");
-    listContainer.innerHTML = "";
-
-    const allChars = getAllCharacters();
-    allChars.forEach(c => {
-      const isChecked = currentMembers.includes(c.id);
-      listContainer.innerHTML += `
-        <label style="cursor:pointer; font-size: 13px;">
-          <input type="checkbox" name="partyChar" value="${c.id}" ${isChecked ? 'checked' : ''}>
-          ${c.name} (${c.playerName})
-        </label>`;
-    });
+    renderPartySelectList(currentMembers, null, true);
 
     document.getElementById("partyModal").style.display = "flex";
   }
@@ -861,6 +961,7 @@
     window.store.teams[sharedTeamId] = { id: sharedTeamId, memberCharIds: selectedCharIds };
 
     selectedCharIds.forEach(cId => {
+      if (cId.startsWith("guest_")) return;
       const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
       const oldRecord = window.store.weeklyRecords[recKey];
       window.store.weeklyRecords[recKey] = {
@@ -872,11 +973,14 @@
     });
 
     saveStoreToCloud();
+    renderApp();
     closePartyModal();
   }
 
   function closePartyModal() {
     document.getElementById("partyModal").style.display = "none";
+    const listContainer = document.getElementById("partySelectList");
+    if (listContainer) listContainer.innerHTML = "";
   }
 
   window.openResetConfigModal = function() {
