@@ -446,7 +446,7 @@
         window.config.bosses.forEach(boss => {
           const isChecked = targetChar.bossIds && targetChar.bossIds.includes(boss.id);
           bossListContainer.innerHTML += `
-            <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #334155 !important;">
               <input type="checkbox" class="edit-char-boss-checkbox" value="${boss.id}" ${isChecked ? 'checked' : ''} />
               ${boss.name}
             </label>
@@ -1027,7 +1027,7 @@
       
       reversedBosses.forEach(boss => {
         bossListContainer.innerHTML += `
-          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #334155 !important;">
             <input type="checkbox" class="new-char-boss-checkbox" value="${boss.id}" />
             ${boss.name}
           </label>
