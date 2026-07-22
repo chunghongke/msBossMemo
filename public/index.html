@@ -766,7 +766,117 @@
 
         container.innerHTML += playerHTML;
       });
+
+      // 4. 渲染頁面最下方的 Guest 清單區塊
+      renderGuestSection();
     }
+
+  window.scrollToGuests = function() {
+    const guestCard = document.getElementById("player-card-guests");
+    const icon = document.getElementById("collapse-icon-guests");
+    if (guestCard) {
+      guestCard.classList.remove("is-collapsed");
+      if (icon) icon.innerText = "▼ 收合";
+      guestCard.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  function renderGuestSection() {
+    const container = document.getElementById("guestSectionContainer");
+    if (!container) return;
+
+    // 記憶重新渲染前的收合狀態 (預設初次載入為 true/收合)
+    const existingCard = document.getElementById("player-card-guests");
+    const wasCollapsed = existingCard ? existingCard.classList.contains("is-collapsed") : true;
+
+    const guests = (window.store && window.store.guests) ? window.store.guests : [];
+    const guestCount = guests.length;
+
+    let guestSectionHTML = `
+      <div class="player-card ${wasCollapsed ? 'is-collapsed' : ''}" id="player-card-guests" style="margin-top: 24px;">
+        <div class="player-header" onclick="togglePlayerCollapse('guests')">
+          <span>👤 臨時 Guest 隊友清單 (共 ${guestCount} 位)</span>
+          <span class="collapse-icon" id="collapse-icon-guests">${wasCollapsed ? '▲ 展開' : '▼ 收合'}</span>
+        </div>
+        <div class="player-characters">
+    `;
+
+    if (guestCount === 0) {
+      guestSectionHTML += `
+        <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px;">
+          目前尚無 Guest 隊友。點擊 BOSS 格子右鍵並於組隊彈窗中即可新增。
+        </div>`;
+    } else {
+      guests.forEach(g => {
+        let participatedBosses = [];
+        if (window.store && window.store.weeklyRecords && window.store.teams) {
+          Object.keys(window.store.weeklyRecords).forEach(recordKey => {
+            const rec = window.store.weeklyRecords[recordKey];
+            if (rec && rec.teamId) {
+              const team = window.store.teams[rec.teamId];
+              if (team && team.memberCharIds && team.memberCharIds.includes(g.id)) {
+                const boss = window.config.bosses.find(b => b.id === rec.bossId);
+                if (boss) {
+                  participatedBosses.push({
+                    recordKey: recordKey,
+                    bossName: rec.entryIndex === 2 ? `${boss.name}(重置)` : boss.name,
+                    isCompleted: rec.isCompleted,
+                    team: team
+                  });
+                }
+              }
+            }
+          });
+        }
+
+        const participatedCount = participatedBosses.length;
+
+        guestSectionHTML += `
+          <div class="character-card">
+            <div class="char-header">
+              <div class="char-title" style="display: flex; align-items: center; gap: 8px;">
+                👤 ${g.name}
+                <button onclick="deleteGuestMember('${g.id}')" 
+                        title="刪除 Guest 隊友"
+                        style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #ef4444; border-radius: 4px; line-height: 1;">
+                  🗑️
+                </button>
+              </div>
+              <span class="char-badge">已參與 ${participatedCount} 隊</span>
+            </div>
+            <div class="boss-grid">
+        `;
+
+        if (participatedCount === 0) {
+          guestSectionHTML += `<div style="grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); font-style: italic; padding: 6px 0;">尚未參與任何 BOSS 隊伍</div>`;
+        } else {
+          participatedBosses.forEach(item => {
+            const memberNames = item.team.memberCharIds.map(id => getCharName(id)).join(", ");
+            guestSectionHTML += `
+              <div class="boss-cell ${item.isCompleted ? 'completed' : 'not-completed'}"
+                   onclick="toggleBossStatus('${item.recordKey}')"
+                   title="隊伍成員: ${memberNames} (點擊可切換完成狀態)">
+                <div class="boss-name">${item.bossName}</div>
+                <div class="party-members">${memberNames}</div>
+              </div>
+            `;
+          });
+        }
+
+        guestSectionHTML += `
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    guestSectionHTML += `
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = guestSectionHTML;
+  }
 
   // ==================== 狀態切換與重置 ====================
   function toggleBossStatus(recordKey) {
@@ -1352,6 +1462,7 @@
       </select>
       <button class="btn" onclick="openAddCharacterModal()">➕ 新增角色</button>
       <button class="btn" onclick="openAddPlayerModal()">+ 新增玩家</button>
+      <button class="btn btn-secondary" onclick="scrollToGuests()">👤 Guest 清單</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(true)">📁 全部收合</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(false)">📂 全部展開</button>
       <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
@@ -1365,6 +1476,9 @@
 
   <!-- 角色橫幅列表容器 -->
   <div id="characterList"></div>
+
+  <!-- Guest 隊友清單容器 (最下方，預設收合) -->
+  <div id="guestSectionContainer"></div>
 
   <!-- 組隊設定彈窗 (右鍵點擊觸發) -->
   <div id="partyModal" class="modal" onclick="handleOverlayClick(event, closePartyModal)">
