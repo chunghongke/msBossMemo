@@ -447,14 +447,37 @@
           const isChecked = targetChar.bossIds && targetChar.bossIds.includes(boss.id);
           bossListContainer.innerHTML += `
             <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #334155 !important;">
-              <input type="checkbox" class="edit-char-boss-checkbox" value="${boss.id}" ${isChecked ? 'checked' : ''} />
+              <input type="checkbox" class="edit-char-boss-checkbox" value="${boss.id}" ${isChecked ? 'checked' : ''} onchange="handleCharBossCheckboxLimit(this, '.edit-char-boss-checkbox', 'editCharBossCount')" />
               ${boss.name}
             </label>
           `;
         });
       }
+      updateCharBossCountDisplay('.edit-char-boss-checkbox', 'editCharBossCount');
 
       modal.style.display = "flex";
+    };
+
+    // 檢查與更新 BOSS 勾選數量的通用函數 (上限 12 隻)
+    window.handleCharBossCheckboxLimit = function(checkbox, selector, countSpanId) {
+      const checked = document.querySelectorAll(`${selector}:checked`);
+      if (checked.length > 12) {
+        alert("最多只能選擇 12 隻 BOSS！");
+        checkbox.checked = false;
+      }
+      updateCharBossCountDisplay(selector, countSpanId);
+    };
+
+    window.updateCharBossCountDisplay = function(selector, countSpanId) {
+      const span = document.getElementById(countSpanId);
+      if (!span) return;
+      const checkedCount = document.querySelectorAll(`${selector}:checked`).length;
+      span.innerText = `(已選 ${checkedCount} / 12)`;
+      if (checkedCount >= 12) {
+        span.style.color = '#e11d48';
+      } else {
+        span.style.color = '#64748b';
+      }
     };
 
     // 2. 關閉彈窗
@@ -472,6 +495,11 @@
       const selectedBossIds = [];
       const checkboxes = document.querySelectorAll(".edit-char-boss-checkbox:checked");
       checkboxes.forEach(cb => selectedBossIds.push(cb.value));
+
+      if (selectedBossIds.length > 12) {
+        alert(`最多只能選擇 12 隻 BOSS！(目前勾選了 ${selectedBossIds.length} 隻)`);
+        return;
+      }
 
       // 在 window.config.players 中尋找並更新該角色的 bossIds
       let updated = false;
@@ -1028,12 +1056,13 @@
       reversedBosses.forEach(boss => {
         bossListContainer.innerHTML += `
           <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #334155 !important;">
-            <input type="checkbox" class="new-char-boss-checkbox" value="${boss.id}" />
+            <input type="checkbox" class="new-char-boss-checkbox" value="${boss.id}" onchange="handleCharBossCheckboxLimit(this, '.new-char-boss-checkbox', 'newCharBossCount')" />
             ${boss.name}
           </label>
         `;
       });
     }
+    updateCharBossCountDisplay('.new-char-boss-checkbox', 'newCharBossCount');
 
     modal.style.display = "flex";
   };
@@ -1058,6 +1087,11 @@
     const selectedBossIds = [];
     const checkboxes = document.querySelectorAll(".new-char-boss-checkbox:checked");
     checkboxes.forEach(cb => selectedBossIds.push(cb.value));
+
+    if (selectedBossIds.length > 12) {
+      alert(`最多只能選擇 12 隻 BOSS！(目前勾選了 ${selectedBossIds.length} 隻)`);
+      return;
+    }
 
     // 2. 找到對應玩家
     const playerIndex = window.config.players.findIndex(p => p.name === playerName);
@@ -1272,7 +1306,7 @@
 
       <!-- 3. 勾選 BOSS 清單 -->
       <div style="margin-bottom: 16px;">
-        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS：</label>
+        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS <span id="newCharBossCount" style="font-weight: normal; font-size: 13px; color: #64748b;">(已選 0 / 12)</span>：</label>
         <div id="newCharBossList" style="max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;"></div>
       </div>
 
@@ -1289,7 +1323,7 @@
       <h3 id="editCharTitle" style="margin-top: 0; margin-bottom: 12px;">✏️ 編輯角色的 BOSS 清單</h3>
       
       <div style="margin-bottom: 16px;">
-        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS：</label>
+        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS <span id="editCharBossCount" style="font-weight: normal; font-size: 13px; color: #64748b;">(已選 0 / 12)</span>：</label>
         <div id="editCharBossList" style="max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;"></div>
       </div>
 
