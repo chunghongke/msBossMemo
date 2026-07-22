@@ -1,0 +1,45 @@
+name: Deploy Single Page App to GitHub Pages
+
+# 當有 Code 推送到 main (或 master) 時觸發
+on:
+  push:
+    branches:
+      - main # 如果你的主分支叫 master，請改為 master
+      - master
+
+# 設定 GitHub Actions 的權限（需要允許寫入 Pages）
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 避免重複觸發，維持單一部署流程
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 檢出程式碼
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 設定 GitHub Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # 3. 上傳靜態檔案 (整個專案根目錄)
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "." # 純 HTML/JS SPA 傳 '.' 即可；如果有 build 出 dist 資料夾則填 'dist'
+
+      # 4. 執行部署到 GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
