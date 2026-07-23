@@ -227,6 +227,15 @@
       padding: 12px 16px;
       border: 1px solid var(--border-color);
       transition: background-color 0.3s, border-color 0.3s;
+      cursor: grab;
+      user-select: none;
+    }
+    .character-card:active {
+      cursor: grabbing;
+    }
+    .character-card.dragging {
+      opacity: 0.4;
+      border: 2px dashed #0284c7 !important;
     }
 
     .char-header {
@@ -695,7 +704,18 @@
       `;
 
       // 💡 關鍵修復：Firebase 取回的空陣列會變成 undefined，在此加上空值保護
-      const characters = p.characters || [];
+      const rawCharacters = p.characters || [];
+
+      // 依照該玩家儲存的自訂拖曳順序排序角色，未儲存過順序的角色維持原本順序
+      const savedCharOrder = getCharacterOrder(p.name);
+      const characters = [...rawCharacters].sort((a, b) => {
+        const idxA = savedCharOrder.indexOf(a.id);
+        const idxB = savedCharOrder.indexOf(b.id);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return 0;
+      });
 
       if (characters.length === 0) {
         playerHTML += `
@@ -709,7 +729,7 @@
           const isFull = count >= 12;
 
           playerHTML += `
-            <div class="character-card">
+            <div class="character-card" draggable="true" data-char-id="${c.id}" data-player-name="${p.name}">
               <div class="char-header">
                 <div class="char-title" style="display: flex; align-items: center; gap: 6px;">
                   ⚔️ ${c.name}
@@ -1708,12 +1728,24 @@
       localStorage.setItem("player_custom_order", JSON.stringify(orderArray));
     }
 
-    // 初始化拖曳事件 (使用 Event Delegation)
+    // 取得指定玩家底下的角色自訂排序
+    function getCharacterOrder(playerName) {
+      const saved = localStorage.getItem(`character_custom_order_${playerName}`);
+      return saved ? JSON.parse(saved) : [];
+    }
+
+    // 儲存指定玩家底下的角色排序至 LocalStorage
+    function saveCharacterOrder(playerName, orderArray) {
+      localStorage.setItem(`character_custom_order_${playerName}`, JSON.stringify(orderArray));
+    }
+
+    // 初始化拖曳事件 (使用 Event Delegation，同時支援玩家排序與角色排序)
     function initDragAndDrop() {
       const container = document.getElementById("characterList");
       if (!container || container.dataset.dragInited) return;
 
       let draggedCard = null;
+      let draggedType = null; // "player" | "character"
 
       container.addEventListener("dragstart", (e) => {
         // 避免點擊按鈕或輸入框時觸發拖曳
@@ -1722,41 +1754,79 @@
           return;
         }
 
-        const card = e.target.closest(".player-card");
-        if (!card) return;
+        // 優先判斷是否拖的是角色卡（角色卡巢狀在玩家卡裡面，需先比對較內層的元素）
+        const charCard = e.target.closest(".character-card");
+        if (charCard) {
+          draggedCard = charCard;
+          draggedType = "character";
+          charCard.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          return;
+        }
 
-        draggedCard = card;
-        card.classList.add("dragging");
+        const playerCard = e.target.closest(".player-card");
+        if (!playerCard) return;
+
+        draggedCard = playerCard;
+        draggedType = "player";
+        playerCard.classList.add("dragging");
         e.dataTransfer.effectAllowed = "move";
       });
 
-      container.addEventListener("dragend", (e) => {
-        const card = e.target.closest(".player-card");
-        if (card) card.classList.remove("dragging");
+      container.addEventListener("dragend", () => {
+        if (draggedCard) draggedCard.classList.remove("dragging");
         draggedCard = null;
+        draggedType = null;
       });
 
       container.addEventListener("dragover", (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
 
-        const targetCard = e.target.closest(".player-card");
-        if (!targetCard || targetCard === draggedCard) return;
+        if (draggedType === "character") {
+          const targetCard = e.target.closest(".character-card");
+          if (!targetCard || targetCard === draggedCard) return;
+          // 限制只能在同一位玩家的角色清單內排序，避免拖曳到其他玩家底下
+          if (targetCard.parentElement !== draggedCard.parentElement) return;
 
-        const rect = targetCard.getBoundingClientRect();
-        const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
-        container.insertBefore(draggedCard, next ? targetCard.nextSibling : targetCard);
+          const rect = targetCard.getBoundingClientRect();
+          const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+          targetCard.parentElement.insertBefore(draggedCard, next ? targetCard.nextSibling : targetCard);
+          return;
+        }
+
+        if (draggedType === "player") {
+          const targetCard = e.target.closest(".player-card");
+          if (!targetCard || targetCard === draggedCard) return;
+
+          const rect = targetCard.getBoundingClientRect();
+          const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+          container.insertBefore(draggedCard, next ? targetCard.nextSibling : targetCard);
+        }
       });
 
       container.addEventListener("drop", (e) => {
         e.preventDefault();
-        // 依據當前 DOM 順序儲存玩家名稱清單
-        const cards = container.querySelectorAll(".player-card");
-        const newOrder = Array.from(cards)
-          .map(card => card.dataset.playerName)
-          .filter(Boolean);
 
-        savePlayerOrder(newOrder);
+        if (draggedType === "character" && draggedCard) {
+          const playerName = draggedCard.dataset.playerName;
+          const parentContainer = draggedCard.parentElement;
+          const newOrder = Array.from(parentContainer.querySelectorAll(".character-card"))
+            .map(card => card.dataset.charId)
+            .filter(Boolean);
+          saveCharacterOrder(playerName, newOrder);
+          return;
+        }
+
+        if (draggedType === "player") {
+          // 依據當前 DOM 順序儲存玩家名稱清單
+          const cards = container.querySelectorAll(".player-card");
+          const newOrder = Array.from(cards)
+            .map(card => card.dataset.playerName)
+            .filter(Boolean);
+
+          savePlayerOrder(newOrder);
+        }
       });
 
       container.dataset.dragInited = "true"; // 避免重複繫結
