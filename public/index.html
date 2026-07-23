@@ -1096,12 +1096,22 @@
       return;
     }
 
+    // 1. 找出變更前的舊隊伍成員
+    const currentRecordKey = `rec_${editingCharId}_${editingBossId}_${editingEntry}`;
+    const currentRecord = window.store.weeklyRecords[currentRecordKey];
+    let oldMemberIds = [];
+    if (currentRecord && currentRecord.teamId && window.store.teams[currentRecord.teamId]) {
+      oldMemberIds = window.store.teams[currentRecord.teamId].memberCharIds || [];
+    }
+
+    // 2. 建立新隊伍
     const sortedIds = [...selectedCharIds].sort().join("_");
     const sharedTeamId = `team_${editingBossId}_${editingEntry}_${sortedIds}`;
 
     if (!window.store.teams) window.store.teams = {};
     window.store.teams[sharedTeamId] = { id: sharedTeamId, memberCharIds: selectedCharIds };
 
+    // 3. 更新目前被勾選的所有成員紀錄
     selectedCharIds.forEach(cId => {
       if (cId.startsWith("guest_")) return;
       const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
@@ -1110,6 +1120,29 @@
         bossId: editingBossId,
         entryIndex: editingEntry,
         teamId: sharedTeamId,
+        isCompleted: oldRecord ? oldRecord.isCompleted : false
+      };
+    });
+
+    // 4. 🔥 【關鍵新增】：找出被踢出/取消勾選的舊成員，恢復成他們的單人預設隊伍
+    const removedMemberIds = oldMemberIds.filter(id => !selectedCharIds.includes(id));
+    removedMemberIds.forEach(cId => {
+      if (cId.startsWith("guest_")) return;
+      const defaultTeamId = `single_${cId}_${editingBossId}_${editingEntry}`;
+      const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
+      const oldRecord = window.store.weeklyRecords[recKey];
+
+      // 確保單人預設隊伍結構存在
+      window.store.teams[defaultTeamId] = {
+        id: defaultTeamId,
+        memberCharIds: [cId]
+      };
+
+      // 將該成員的記錄改回單人隊伍
+      window.store.weeklyRecords[recKey] = {
+        bossId: editingBossId,
+        entryIndex: editingEntry,
+        teamId: defaultTeamId,
         isCompleted: oldRecord ? oldRecord.isCompleted : false
       };
     });
