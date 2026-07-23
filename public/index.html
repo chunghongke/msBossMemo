@@ -1272,15 +1272,25 @@
     const primaryUser = getPrimaryUser();
     const allChars = getAllCharacters();
     let targetChars = allChars.filter(c => c.playerName === primaryUser);
+    let displayedPlayerName = primaryUser;
+    let isFallback = false;
 
     if (targetChars.length === 0 && window.config.players && window.config.players.length > 0) {
       const firstPlayerName = window.config.players[0].name;
       targetChars = allChars.filter(c => c.playerName === firstPlayerName);
+      displayedPlayerName = firstPlayerName;
+      isFallback = true;
     }
 
     if (targetChars.length === 0) {
       modalBody.innerHTML = `<div style="text-align:center; padding: 15px; color: #64748b;">⚠️ 尚未選擇主要玩家或該玩家無角色</div>`;
     } else {
+      const hintText = isFallback
+        ? `⚠️ 尚未選擇主要玩家（或該玩家無角色），目前顯示的是「${displayedPlayerName}」的角色`
+        : `目前顯示的是主要玩家「${displayedPlayerName}」的角色`;
+      const hintColor = isFallback ? "#b45309" : "#64748b";
+      modalBody.innerHTML += `<div style="font-size:12px; color:${hintColor}; margin-bottom:8px;">${hintText}</div>`;
+
       targetChars.forEach(c => {
         const availableResetBosses = resetableBosses.filter(b => c.bossIds && c.bossIds.includes(b.id));
 
@@ -1309,7 +1319,7 @@
 
   function toggleResetConfig(charId, bossId) {
     window.config.players.forEach(p => {
-      p.characters.forEach(c => {
+      (p.characters || []).forEach(c => {
         if (c.id === charId) {
           if (!c.resetBossIds) c.resetBossIds = [];
           const index = c.resetBossIds.indexOf(bossId);
