@@ -682,7 +682,7 @@
           <div class="player-characters">
       `;
 
-      p.characters.forEach(c => {
+      (p.characters || []).forEach(c => {
         const count = getCharacterCompletedCount(c.id);
         const isFull = count >= 12;
 
