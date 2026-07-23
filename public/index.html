@@ -739,20 +739,30 @@
 
               if (record && team) {
                 const isCompleted = record.isCompleted;
+                // 1. 取得所有有效隊員 ID
                 const validMemberIds = (team.memberCharIds || []).filter(id => {
                   if (!id.startsWith("guest_")) return true;
                   return window.store.guests && window.store.guests.some(g => g.id === id);
                 });
-                const memberCount = validMemberIds.length;
-                const memberNames = validMemberIds.map(id => getCharName(id)).join(", ");
-                const displayTeamText = memberCount > 1 ? memberNames : '單人';
+
+                // 2. 🔥 關鍵修改：過濾掉目前卡片的角色自己 (c.id)
+                const partyMembers = validMemberIds.filter(id => id !== c.id);
+
+                // 3. 全體隊友名稱（提示 hover 用，仍保留所有人或過濾後名稱皆可）
+                const allMemberNames = validMemberIds.map(id => getCharName(id)).join(", ");
+
+                // 4. 判斷卡片下方要顯示的隊友文字：若有其他隊友則顯示隊友名稱，否則顯示 '單人'
+                const displayTeamText = partyMembers.length > 0
+                  ? partyMembers.map(id => getCharName(id)).join(", ")
+                  : '單人';
+
                 const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
 
                 playerHTML += `
                   <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
                       onclick="toggleBossStatus('${recordKey}')"
                       oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
-                      title="隊伍成員: ${memberNames} (右鍵可編輯隊伍)">
+                      title="隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)">
                     <div class="boss-name">${bossDisplayName}</div>
                     <div class="party-members">${displayTeamText}</div>
                   </div>
