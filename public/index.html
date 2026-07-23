@@ -669,7 +669,6 @@
       const playerId = `p_${pIdx}`;
       const isPrimary = p.name === primaryUser;
 
-      // 💡 關鍵：加上 draggable="true" 與 data-player-name
       let playerHTML = `
         <div class="player-card ${isPrimary ? 'primary-player' : ''}" 
             id="player-card-${playerId}" 
@@ -682,97 +681,108 @@
           <div class="player-characters">
       `;
 
-      (p.characters || []).forEach(c => {
-        const count = getCharacterCompletedCount(c.id);
-        const isFull = count >= 12;
+      // 💡 關鍵修復：Firebase 取回的空陣列會變成 undefined，在此加上空值保護
+      const characters = p.characters || [];
 
+      if (characters.length === 0) {
         playerHTML += `
-          <div class="character-card">
-            <div class="char-header">
-              <div class="char-title" style="display: flex; align-items: center; gap: 6px;">
-                ⚔️ ${c.name}
-                <button class="btn-icon" 
-                        onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')" 
-                        title="編輯角色的 BOSS 清單"
-                        style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
-                        onmouseover="this.style.background='#e2e8f0'" 
-                        onmouseout="this.style.background='transparent'">
-                  ✏️
-                </button>
-                <button class="btn-icon"
-                        onclick="event.stopPropagation(); openRenameCharModal('${c.id}', '${c.name.replace(/'/g, "\\'")}')"
-                        title="修改角色名稱"
-                        style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
-                        onmouseover="this.style.background='#e2e8f0'"
-                        onmouseout="this.style.background='transparent'">
-                  🖊️
-                </button>
-              </div>
-              <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
-            </div>
-            <div class="boss-grid">
-        `;
-
-        window.config.bosses.forEach(boss => {
-          if (c.bossIds && Array.isArray(c.bossIds) && c.bossIds.length > 0 && !c.bossIds.includes(boss.id)) {
-            return;
-          }
-
-          const maxEntries = boss.allowReset ? 2 : 1;
-
-          for (let entry = 1; entry <= maxEntries; entry++) {
-            if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
-              continue;
-            }
-
-            const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
-            const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
-            const team = record && window.store.teams ? window.store.teams[record.teamId] : null;
-
-            if (record && team) {
-              const isCompleted = record.isCompleted;
-              
-              let rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: entry }));
-              
-              const validMembers = rawMembers.filter(m => {
-                if (!m.charId.startsWith("guest_")) return true;
-                return window.store.guests && window.store.guests.some(g => g.id === m.charId);
-              });
-
-              const partyMembers = validMembers.filter(m => !(m.charId === c.id && m.entryIndex === entry));
-
-              const allMemberNames = validMembers.map(m => {
-                const name = getCharName(m.charId);
-                return m.entryIndex === 2 ? `${name}(重置)` : name;
-              }).join(", ");
-
-              const displayTeamText = partyMembers.length > 0
-                ? partyMembers.map(m => {
-                    const name = getCharName(m.charId);
-                    return m.entryIndex === 2 ? `${name}(重置)` : name;
-                  }).join(", ")
-                : '單人';
-
-              const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
-
-              playerHTML += `
-                <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
-                    onclick="toggleBossStatus('${recordKey}')"
-                    oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
-                    title="隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)">
-                  <div class="boss-name">${bossDisplayName}</div>
-                  <div class="party-members">${displayTeamText}</div>
-                </div>
-              `;
-            }
-          }
-        });
-
-        playerHTML += `
-            </div>
+          <div style="padding: 10px 20px; color: #94a3b8; font-size: 13px; font-style: italic;">
+            尚無角色，請點擊上方「➕ 新增角色」來為 ${p.name} 建立角色。
           </div>
         `;
-      });
+      } else {
+        characters.forEach(c => {
+          const count = getCharacterCompletedCount(c.id);
+          const isFull = count >= 12;
+
+          playerHTML += `
+            <div class="character-card">
+              <div class="char-header">
+                <div class="char-title" style="display: flex; align-items: center; gap: 6px;">
+                  ⚔️ ${c.name}
+                  <button class="btn-icon" 
+                          onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')" 
+                          title="編輯角色的 BOSS 清單"
+                          style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
+                          onmouseover="this.style.background='#e2e8f0'" 
+                          onmouseout="this.style.background='transparent'">
+                    ✏️
+                  </button>
+                  <button class="btn-icon"
+                          onclick="event.stopPropagation(); openRenameCharModal('${c.id}', '${c.name.replace(/'/g, "\\'")}')"
+                          title="修改角色名稱"
+                          style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
+                          onmouseover="this.style.background='#e2e8f0'"
+                          onmouseout="this.style.background='transparent'">
+                    🖊️
+                  </button>
+                </div>
+                <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
+              </div>
+              <div class="boss-grid">
+          `;
+
+          window.config.bosses.forEach(boss => {
+            if (c.bossIds && Array.isArray(c.bossIds) && c.bossIds.length > 0 && !c.bossIds.includes(boss.id)) {
+              return;
+            }
+
+            const maxEntries = boss.allowReset ? 2 : 1;
+
+            for (let entry = 1; entry <= maxEntries; entry++) {
+              if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
+                continue;
+              }
+
+              const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+              const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
+              const team = record && window.store.teams ? window.store.teams[record.teamId] : null;
+
+              if (record && team) {
+                const isCompleted = record.isCompleted;
+                
+                let rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: entry }));
+                
+                const validMembers = rawMembers.filter(m => {
+                  if (!m.charId.startsWith("guest_")) return true;
+                  return window.store.guests && window.store.guests.some(g => g.id === m.charId);
+                });
+
+                const partyMembers = validMembers.filter(m => !(m.charId === c.id && m.entryIndex === entry));
+
+                const allMemberNames = validMembers.map(m => {
+                  const name = getCharName(m.charId);
+                  return m.entryIndex === 2 ? `${name}(重置)` : name;
+                }).join(", ");
+
+                const displayTeamText = partyMembers.length > 0
+                  ? partyMembers.map(m => {
+                      const name = getCharName(m.charId);
+                      return m.entryIndex === 2 ? `${name}(重置)` : name;
+                    }).join(", ")
+                  : '單人';
+
+                const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
+
+                playerHTML += `
+                  <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
+                      onclick="toggleBossStatus('${recordKey}')"
+                      oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
+                      title="隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)">
+                    <div class="boss-name">${bossDisplayName}</div>
+                    <div class="party-members">${displayTeamText}</div>
+                  </div>
+                `;
+              }
+            }
+          });
+
+          playerHTML += `
+              </div>
+            </div>
+          `;
+        });
+      }
 
       playerHTML += `
           </div>
@@ -783,8 +793,6 @@
     });
 
     renderGuestSection();
-    
-    // 💡 畫面渲染後綁定拖曳監聽
     initDragAndDrop();
   }
 
