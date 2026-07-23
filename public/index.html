@@ -408,8 +408,21 @@
       const data = snapshot.val();
       
       if (data) {
-        window.config.bosses = data.bosses || [];
-        window.config.players = data.players || [];
+        // 💡 修復：過濾 Firebase 產生的 null 空洞，並防範陣列轉 Object
+        let rawBosses = data.bosses || [];
+        if (!Array.isArray(rawBosses)) {
+          rawBosses = Object.values(rawBosses);
+        }
+        // 把 null 跟 undefined 濾掉
+        window.config.bosses = rawBosses.filter(b => b !== null && b !== undefined);
+
+        // 順便把 players 也加上同樣的安全防護（預防以後你也手動刪除玩家）
+        let rawPlayers = data.players || [];
+        if (!Array.isArray(rawPlayers)) {
+          rawPlayers = Object.values(rawPlayers);
+        }
+        window.config.players = rawPlayers.filter(p => p !== null && p !== undefined);
+
         window.store = data.store || { teams: {}, weeklyRecords: {}, guests: [] };
         if (!window.store.guests) window.store.guests = [];
       }
