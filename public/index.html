@@ -953,21 +953,28 @@
         checkedKeys.push(`${autoCheckGuestId}_1`);
       }
 
-      let html = `<div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">⚔️ 正式角色與攻略輪次：</div>`;
+      // 💡 在標題區塊新增紅字警告提示 (預設 display: none)
+      let html = `
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+          該 BOSS 人數上限為 <b style="color: var(--title-color);">${maxPartySize}</b> 人
+          <span id="partyLimitWarning" style="display: none; color: #ef4444; font-weight: bold; margin-left: 6px; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.2);">
+            ⚠️ 已達隊伍人數上限
+          </span>
+        </div>
+        <div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">⚔️ 正式角色與攻略輪次：</div>
+      `;
+
       const allChars = getAllCharacters();
       
       allChars.forEach(c => {
-        // 判斷該角色對於當前 editingBossId 有哪些輪次可選 (至少有 entry=1，有重置才有 entry=2)
         const hasBoss = c.bossIds && c.bossIds.includes(editingBossId);
-        if (!hasBoss) return; // 沒設定此 BOSS 的角色不列出
+        if (!hasBoss) return;
 
         const hasReset = c.resetBossIds && c.resetBossIds.includes(editingBossId);
         const availableEntries = hasReset ? [1, 2] : [1];
 
         availableEntries.forEach(entryIdx => {
           const targetKey = `${c.id}_${entryIdx}`;
-          
-          // 🔥 判斷是否為發起組隊的「自己」
           const isSelf = (c.id === editingCharId && entryIdx === editingEntry);
 
           // 檢查該角色此卡片是否已屬於「其他已滿員的隊伍」
@@ -979,11 +986,8 @@
               const targetTeam = window.store.teams ? window.store.teams[targetRec.teamId] : null;
               if (targetTeam) {
                 const members = targetTeam.memberTargets || (targetTeam.memberCharIds || []).map(id => ({ charId: id, entryIndex: entryIdx }));
-                
-                // 檢查目前發起的角色 (editingCharId, editingEntry) 是否已經在該隊伍中
                 const isSelfInTargetTeam = members.some(m => m.charId === editingCharId && m.entryIndex === editingEntry);
 
-                // 如果自己不在該隊伍中，且該隊伍人數已經達到或超過 BOSS 上限，則隱藏不顯示
                 if (!isSelfInTargetTeam && members.length >= maxPartySize) {
                   return; // 跳過不渲染此選項
                 }
@@ -991,11 +995,7 @@
             }
           }
 
-          // 如果是自己，強制 checked 與 disabled；其他人則依據原本選取狀態
           const isChecked = isSelf || checkedKeys.includes(targetKey);
-          const disabledAttr = isSelf ? 'disabled' : '';
-          
-          // 視覺反白／灰色樣式
           const labelStyle = isSelf 
             ? 'cursor: not-allowed; font-size: 13px; display: flex; align-items: center; gap: 6px; opacity: 0.6; font-weight: bold;' 
             : 'cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;';
@@ -1004,7 +1004,11 @@
 
           html += `
             <label style="${labelStyle}">
-              <input type="checkbox" name="partyChar" value="${targetKey}" ${isChecked ? 'checked' : ''} ${disabledAttr}>
+              <input type="checkbox" name="partyChar" value="${targetKey}" 
+                    data-is-self="${isSelf}"
+                    ${isChecked ? 'checked' : ''} 
+                    ${isSelf ? 'disabled' : ''} 
+                    onchange="updatePartyCheckboxStates()">
               ${c.name} (${c.playerName})${entryTag} ${isSelf ? '✨(隊長)' : ''}
             </label>`;
         });
@@ -1027,7 +1031,10 @@
           html += `
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; color: #0284c7;">
-                <input type="checkbox" name="partyChar" value="${targetKey}" ${isChecked ? 'checked' : ''}>
+                <input type="checkbox" name="partyChar" value="${targetKey}" 
+                      data-is-self="false"
+                      ${isChecked ? 'checked' : ''} 
+                      onchange="updatePartyCheckboxStates()">
                 ${g.name} <span style="font-size:11px; color:var(--text-muted);">(Guest)</span>
               </label>
               <button onclick="deleteGuestMember('${g.id}')" style="background: transparent; border: none; cursor: pointer; font-size: 12px; color: #ef4444;" title="刪除 Guest 隊友">🗑️</button>
@@ -1039,6 +1046,9 @@
       html += `</div>`;
 
       listContainer.innerHTML = html;
+
+      // 渲染完成後立刻刷新一次狀態
+      updatePartyCheckboxStates();
     }
 
   window.addGuestMember = function() {
@@ -1569,6 +1579,63 @@
       alert("新增玩家失敗，請稍後再試！");
     }
   }
+
+  function updatePartyCheckboxStates() {
+      const boss = window.config.bosses.find(b => b.id === editingBossId);
+      const maxPartySize = boss ? boss.maxPartySize : 1;
+
+      // 取得所有 partyChar 的選取框
+      const checkboxes = Array.from(document.querySelectorAll('input[name="partyChar"]'));
+      // 計算目前已被勾選的數量
+      const checkedCount = checkboxes.filter(cb => cb.checked).length;
+
+      // 🔥 控制上限警告標語的顯示/隱藏
+      const warningEl = document.getElementById("partyLimitWarning");
+      if (warningEl) {
+        if (checkedCount >= maxPartySize) {
+          warningEl.style.display = "inline-block"; // 顯示紅字提示
+        } else {
+          warningEl.style.display = "none"; // 未達上限則隱藏
+        }
+      }
+
+      checkboxes.forEach(cb => {
+        const isSelf = cb.getAttribute('data-is-self') === 'true';
+
+        // 自己始終保持勾選且不可切換
+        if (isSelf) {
+          cb.disabled = true;
+          return;
+        }
+
+        const label = cb.closest('label');
+
+        if (checkedCount >= maxPartySize) {
+          // 達到上限：未勾選的項目設為 disabled
+          if (!cb.checked) {
+            cb.disabled = true;
+            if (label) {
+              label.style.opacity = '0.4';
+              label.style.cursor = 'not-allowed';
+            }
+          } else {
+            // 已勾選的非隊長項目，依然可以取消勾選
+            cb.disabled = false;
+            if (label) {
+              label.style.opacity = '1';
+              label.style.cursor = 'pointer';
+            }
+          }
+        } else {
+          // 未達上限：所有非隊長的項目皆可自由勾選
+          cb.disabled = false;
+          if (label) {
+            label.style.opacity = '1';
+            label.style.cursor = 'pointer';
+          }
+        }
+      });
+    }
   </script>
 </head>
 <body>
