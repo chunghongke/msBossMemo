@@ -966,9 +966,11 @@
 
         availableEntries.forEach(entryIdx => {
           const targetKey = `${c.id}_${entryIdx}`;
+          
+          // 🔥 判斷是否為發起組隊的「自己」
           const isSelf = (c.id === editingCharId && entryIdx === editingEntry);
 
-          // 🔥 新增：檢查該角色此卡片是否已屬於「其他已滿員的隊伍」
+          // 檢查該角色此卡片是否已屬於「其他已滿員的隊伍」
           if (!isSelf) {
             const targetRecKey = `rec_${c.id}_${editingBossId}_${entryIdx}`;
             const targetRec = window.store.weeklyRecords ? window.store.weeklyRecords[targetRecKey] : null;
@@ -989,13 +991,21 @@
             }
           }
 
-          const isChecked = checkedKeys.includes(targetKey);
+          // 如果是自己，強制 checked 與 disabled；其他人則依據原本選取狀態
+          const isChecked = isSelf || checkedKeys.includes(targetKey);
+          const disabledAttr = isSelf ? 'disabled' : '';
+          
+          // 視覺反白／灰色樣式
+          const labelStyle = isSelf 
+            ? 'cursor: not-allowed; font-size: 13px; display: flex; align-items: center; gap: 6px; opacity: 0.6; font-weight: bold;' 
+            : 'cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;';
+
           const entryTag = entryIdx === 2 ? ' (重置刷)' : ' (首次刷)';
 
           html += `
-            <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;">
-              <input type="checkbox" name="partyChar" value="${targetKey}" ${isChecked ? 'checked' : ''}>
-              ${c.name} (${c.playerName})${entryTag}
+            <label style="${labelStyle}">
+              <input type="checkbox" name="partyChar" value="${targetKey}" ${isChecked ? 'checked' : ''} ${disabledAttr}>
+              ${c.name} (${c.playerName})${entryTag} ${isSelf ? '✨(隊長)' : ''}
             </label>`;
         });
       });
