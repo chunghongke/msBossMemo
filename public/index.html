@@ -370,7 +370,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    // Your web app's Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyC6_PrlBgVTbmpDCrWP7KMTAq8RHtNsI-M",
       authDomain: "msbossmemo-752e3.firebaseapp.com",
@@ -391,7 +390,6 @@
     window.config = { bosses: [], players: [] };
     window.store = { teams: {}, weeklyRecords: {} };
 
-    // 直接監聽資料庫根目錄 '/'，任何成員、BOSS 或進度更新都會全網同步
     const rootRef = ref(db, '/');
     onValue(rootRef, (snapshot) => {
       const data = snapshot.val();
@@ -403,15 +401,12 @@
         if (!window.store.guests) window.store.guests = [];
       }
 
-      // 當雲端資料拉下來後，進行預設單人隊伍補建與畫面渲染
       ensureDefaultSingleTeams();
       renderApp();
     });
 
-    // 當前正在編輯的角色 ID 全域變數
     let currentEditingCharId = null;
 
-    // 1. 打開編輯彈窗並預先勾選已有的 bossIds
     window.openEditCharBossesModal = function(charId) {
       currentEditingCharId = charId;
       const modal = document.getElementById("editCharBossesModal");
@@ -420,7 +415,6 @@
 
       if (!modal || !bossListContainer) return;
 
-      // 搜尋目標角色
       let targetChar = null;
       if (window.config.players) {
         for (const player of window.config.players) {
@@ -441,7 +435,6 @@
 
       titleEl.innerText = `✏️ 編輯 ${targetChar.name} 的 BOSS 清單`;
 
-      // 渲染所有 BOSS 勾選清單，已有的 bossIds 自動打勾
       bossListContainer.innerHTML = "";
       if (window.config.bosses && Array.isArray(window.config.bosses)) {
         window.config.bosses.forEach(boss => {
@@ -459,7 +452,6 @@
       modal.style.display = "flex";
     };
 
-    // 檢查與更新 BOSS 勾選數量的通用函數 (上限 12 隻)
     window.handleCharBossCheckboxLimit = function(checkbox, selector, countSpanId) {
       const checked = document.querySelectorAll(`${selector}:checked`);
       if (checked.length > 12) {
@@ -481,18 +473,15 @@
       }
     };
 
-    // 2. 關閉彈窗
     window.closeEditCharBossesModal = function() {
       const modal = document.getElementById("editCharBossesModal");
       if (modal) modal.style.display = "none";
       currentEditingCharId = null;
     };
 
-    // 3. 儲存變更並更新至 Firebase
     window.saveEditCharBosses = function() {
       if (!currentEditingCharId) return;
 
-      // 蒐集勾選的 BOSS ID
       const selectedBossIds = [];
       const checkboxes = document.querySelectorAll(".edit-char-boss-checkbox:checked");
       checkboxes.forEach(cb => selectedBossIds.push(cb.value));
@@ -502,7 +491,6 @@
         return;
       }
 
-      // 在 window.config.players 中尋找並更新該角色的 bossIds
       let updated = false;
       if (window.config.players) {
         for (const player of window.config.players) {
@@ -511,7 +499,6 @@
             if (targetChar) {
               targetChar.bossIds = selectedBossIds;
               
-              // 防呆：如果取消勾選了某 BOSS，且該 BOSS 原本在 resetBossIds 中，順便清除
               if (targetChar.resetBossIds) {
                 targetChar.resetBossIds = targetChar.resetBossIds.filter(bId => selectedBossIds.includes(bId));
               }
@@ -528,7 +515,6 @@
         return;
       }
 
-      // 寫入 Firebase
       if (window.db && window.dbRef && window.dbSet) {
         const playersRef = window.dbRef(window.db, 'players');
         
@@ -546,7 +532,6 @@
   </script>
 
   <script>
-  // ==================== 雲端資料同步函數 ====================
   function saveStoreToCloud() {
     if (window.db && window.dbRef && window.dbSet) {
       const storeRef = window.dbRef(window.db, '/store');
@@ -554,20 +539,6 @@
         .then(() => console.log("☁️ 雲端同步成功！"))
         .catch((err) => console.error("❌ 雲端同步失敗:", err));
     }
-  }
-
-  function loadConfigAndRender() {
-    // 自動相容不同的 bosses.js 變數名稱
-    if (typeof bossConfigData !== 'undefined') window.config.bosses = bossConfigData;
-    else if (typeof bossesData !== 'undefined') window.config.bosses = bossesData;
-    else if (typeof bosses !== 'undefined') window.config.bosses = bosses;
-
-    if (typeof playersData !== 'undefined') {
-      window.config.players = playersData;
-    }
-
-    ensureDefaultSingleTeams();
-    renderApp();
   }
 
   function getAllCharacters() {
@@ -594,7 +565,6 @@
     return charId;
   }
 
-  // 預設為各角色建立單人隊伍
   function ensureDefaultSingleTeams() {
     const allChars = getAllCharacters();
     let updated = false;
@@ -618,7 +588,7 @@
           if (!window.store.weeklyRecords[recordKey]) {
             window.store.teams[defaultTeamId] = {
               id: defaultTeamId,
-              memberCharIds: [c.id]
+              memberTargets: [{ charId: c.id, entryIndex: entry }]
             };
             window.store.weeklyRecords[recordKey] = {
               bossId: boss.id,
@@ -632,7 +602,6 @@
       }
     });
 
-    // 如果有新增預設單人隊伍，自動同步至 Firebase
     if (updated) {
       saveStoreToCloud();
     }
@@ -653,9 +622,7 @@
     return count;
   }
 
-  // ==================== 畫面渲染邏輯 ====================
   function renderApp() {
-      // 1. 更新下拉選單
       updateUserSelectOptions();
 
       const container = document.getElementById("characterList");
@@ -668,7 +635,6 @@
         return;
       }
 
-      // 2. 🔥 關鍵排序邏輯：複製一份 players 陣列，並將指定使用者排到最前面
       const primaryUser = getPrimaryUser();
       const sortedPlayers = [...window.config.players].sort((a, b) => {
         if (a.name === primaryUser) return -1;
@@ -676,7 +642,6 @@
         return 0;
       });
 
-      // 3. 使用排序後的 sortedPlayers 進行畫面渲染
       sortedPlayers.forEach((p, pIdx) => {
         const playerId = `p_${pIdx}`;
         const isPrimary = p.name === primaryUser;
@@ -739,21 +704,27 @@
 
               if (record && team) {
                 const isCompleted = record.isCompleted;
-                // 1. 取得所有有效隊員 ID
-                const validMemberIds = (team.memberCharIds || []).filter(id => {
-                  if (!id.startsWith("guest_")) return true;
-                  return window.store.guests && window.store.guests.some(g => g.id === id);
+                
+                // 相容舊結構 memberCharIds 與新結構 memberTargets
+                let rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: entry }));
+                
+                const validMembers = rawMembers.filter(m => {
+                  if (!m.charId.startsWith("guest_")) return true;
+                  return window.store.guests && window.store.guests.some(g => g.id === m.charId);
                 });
 
-                // 2. 🔥 關鍵修改：過濾掉目前卡片的角色自己 (c.id)
-                const partyMembers = validMemberIds.filter(id => id !== c.id);
+                const partyMembers = validMembers.filter(m => !(m.charId === c.id && m.entryIndex === entry));
 
-                // 3. 全體隊友名稱（提示 hover 用，仍保留所有人或過濾後名稱皆可）
-                const allMemberNames = validMemberIds.map(id => getCharName(id)).join(", ");
+                const allMemberNames = validMembers.map(m => {
+                  const name = getCharName(m.charId);
+                  return m.entryIndex === 2 ? `${name}(重置)` : name;
+                }).join(", ");
 
-                // 4. 判斷卡片下方要顯示的隊友文字：若有其他隊友則顯示隊友名稱，否則顯示 '單人'
                 const displayTeamText = partyMembers.length > 0
-                  ? partyMembers.map(id => getCharName(id)).join(", ")
+                  ? partyMembers.map(m => {
+                      const name = getCharName(m.charId);
+                      return m.entryIndex === 2 ? `${name}(重置)` : name;
+                    }).join(", ")
                   : '單人';
 
                 const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
@@ -785,7 +756,6 @@
         container.innerHTML += playerHTML;
       });
 
-      // 4. 渲染頁面最下方的 Guest 清單區塊
       renderGuestSection();
     }
 
@@ -803,7 +773,6 @@
     const container = document.getElementById("guestSectionContainer");
     if (!container) return;
 
-    // 記憶重新渲染前的收合狀態 (預設初次載入為 true/收合)
     const existingCard = document.getElementById("player-card-guests");
     const wasCollapsed = existingCard ? existingCard.classList.contains("is-collapsed") : true;
 
@@ -832,14 +801,17 @@
             const rec = window.store.weeklyRecords[recordKey];
             if (rec && rec.teamId) {
               const team = window.store.teams[rec.teamId];
-              if (team && team.memberCharIds && team.memberCharIds.includes(g.id)) {
+              const members = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: rec.entryIndex }));
+              
+              if (team && members.some(m => m.charId === g.id)) {
                 const boss = window.config.bosses.find(b => b.id === rec.bossId);
                 if (boss) {
                   participatedBosses.push({
                     recordKey: recordKey,
                     bossName: rec.entryIndex === 2 ? `${boss.name}(重置)` : boss.name,
                     isCompleted: rec.isCompleted,
-                    team: team
+                    team: team,
+                    members: members
                   });
                 }
               }
@@ -869,7 +841,7 @@
           guestSectionHTML += `<div style="grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); font-style: italic; padding: 6px 0;">尚未參與任何 BOSS 隊伍</div>`;
         } else {
           participatedBosses.forEach(item => {
-            const memberNames = item.team.memberCharIds.map(id => getCharName(id)).join(", ");
+            const memberNames = item.members.map(m => getCharName(m.charId)).join(", ");
             guestSectionHTML += `
               <div class="boss-cell ${item.isCompleted ? 'completed' : 'not-completed'}"
                    onclick="toggleBossStatus('${item.recordKey}')"
@@ -896,18 +868,18 @@
     container.innerHTML = guestSectionHTML;
   }
 
-  // ==================== 狀態切換與重置 ====================
   function toggleBossStatus(recordKey) {
     const record = window.store.weeklyRecords[recordKey];
     if (!record || !record.teamId) return;
 
     const team = window.store.teams[record.teamId];
+    const members = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: record.entryIndex }));
 
     if (!record.isCompleted && team) {
-      for (const charId of team.memberCharIds) {
-        if (charId.startsWith("guest_")) continue;
-        if (getCharacterCompletedCount(charId) >= 12) {
-          alert(`角色 [${getCharName(charId)}] 本週攻略數量已達 12 隻上限！`);
+      for (const m of members) {
+        if (m.charId.startsWith("guest_")) continue;
+        if (getCharacterCompletedCount(m.charId) >= 12) {
+          alert(`角色 [${getCharName(m.charId)}] 本週攻略數量已達 12 隻上限！`);
           return;
         }
       }
@@ -920,20 +892,17 @@
       }
     });
 
-    // 儲存至雲端 (雲端監聽會自動重新渲染畫面)
     saveStoreToCloud();
   }
 
   function resetWeeklyStatus() {
       const primaryUser = getPrimaryUser();
 
-      // 如果沒有選擇主要玩家，給予提示
       if (!primaryUser) {
         alert("請先在上方選單選擇「排在最上方」的主要玩家！");
         return;
       }
 
-      // 取得主要玩家擁有的所有角色 ID
       const primaryPlayerObj = window.config.players.find(p => p.name === primaryUser);
       if (!primaryPlayerObj || !primaryPlayerObj.characters || primaryPlayerObj.characters.length === 0) {
         alert(`主要玩家 [${primaryUser}] 之下沒有任何角色！`);
@@ -945,7 +914,6 @@
       if (confirm(`確定要重置主要玩家 [${primaryUser}] 本週所有角色的 BOSS 攻略狀態嗎？\n(其他玩家進度與組隊資訊將完整保留)`)) {
         if (window.store && window.store.weeklyRecords) {
           Object.keys(window.store.weeklyRecords).forEach(key => {
-            // 檢查紀錄 Key 是否對應主要玩家的角色 ID
             primaryCharIds.forEach(charId => {
               if (key.startsWith(`rec_${charId}_`)) {
                 window.store.weeklyRecords[key].isCompleted = false;
@@ -957,47 +925,53 @@
       }
     }
 
-  // function clearAllData() {
-  //   if (confirm("確定要清除所有雲端資料嗎？\n這將會重置所有人的組隊設定與攻略狀態！")) {
-  //     window.store = { teams: {}, weeklyRecords: {} };
-  //     saveStoreToCloud();
-  //   }
-  // }
-
-  // ==================== Modal 與操控邏輯 ====================
+  // ==================== Modal 與操控邏輯 (重點重構區) ====================
   let editingCharId = null;
   let editingBossId = null;
   let editingEntry = 1;
 
-  function renderPartySelectList(initialMemberIds = [], autoCheckGuestId = null, isFreshOpen = false) {
+  function renderPartySelectList(initialMemberTargets = [], autoCheckGuestId = null, isFreshOpen = false) {
     const listContainer = document.getElementById("partySelectList");
     if (!listContainer) return;
 
-    let checkedIds = [];
+    let checkedKeys = [];
     if (isFreshOpen) {
-      checkedIds = [...initialMemberIds];
+      checkedKeys = initialMemberTargets.map(m => `${m.charId}_${m.entryIndex}`);
     } else {
       const existingCheckboxes = document.querySelectorAll('input[name="partyChar"]:checked');
       if (existingCheckboxes.length > 0) {
-        checkedIds = Array.from(existingCheckboxes).map(cb => cb.value);
+        checkedKeys = Array.from(existingCheckboxes).map(cb => cb.value);
       } else {
-        checkedIds = [...initialMemberIds];
+        checkedKeys = initialMemberTargets.map(m => `${m.charId}_${m.entryIndex}`);
       }
     }
 
-    if (autoCheckGuestId && !checkedIds.includes(autoCheckGuestId)) {
-      checkedIds.push(autoCheckGuestId);
+    if (autoCheckGuestId && !checkedKeys.includes(`${autoCheckGuestId}_1`)) {
+      checkedKeys.push(`${autoCheckGuestId}_1`);
     }
 
-    let html = `<div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">⚔️ 正式角色：</div>`;
+    let html = `<div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">⚔️ 正式角色與攻略輪次：</div>`;
     const allChars = getAllCharacters();
+    
     allChars.forEach(c => {
-      const isChecked = checkedIds.includes(c.id);
-      html += `
-        <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;">
-          <input type="checkbox" name="partyChar" value="${c.id}" ${isChecked ? 'checked' : ''}>
-          ${c.name} (${c.playerName})
-        </label>`;
+      // 判斷該角色對於當前 editingBossId 有哪些輪次可選 (至少有 entry=1，有重置才有 entry=2)
+      const hasBoss = c.bossIds && c.bossIds.includes(editingBossId);
+      if (!hasBoss) return; // 沒設定此 BOSS 的角色不列出
+
+      const hasReset = c.resetBossIds && c.resetBossIds.includes(editingBossId);
+      const availableEntries = hasReset ? [1, 2] : [1];
+
+      availableEntries.forEach(entryIdx => {
+        const targetKey = `${c.id}_${entryIdx}`;
+        const isChecked = checkedKeys.includes(targetKey);
+        const entryTag = entryIdx === 2 ? ' (重置刷)' : ' (首次刷)';
+
+        html += `
+          <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+            <input type="checkbox" name="partyChar" value="${targetKey}" ${isChecked ? 'checked' : ''}>
+            ${c.name} (${c.playerName})${entryTag}
+          </label>`;
+      });
     });
 
     html += `<hr style="border:0; border-top:1px var(--border-color) solid; margin: 12px 0 10px 0;">`;
@@ -1012,11 +986,12 @@
 
     if (window.store && window.store.guests && window.store.guests.length > 0) {
       window.store.guests.forEach(g => {
-        const isChecked = checkedIds.includes(g.id);
+        const targetKey = `${g.id}_1`;
+        const isChecked = checkedKeys.includes(targetKey);
         html += `
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; color: #0284c7;">
-              <input type="checkbox" name="partyChar" value="${g.id}" ${isChecked ? 'checked' : ''}>
+              <input type="checkbox" name="partyChar" value="${targetKey}" ${isChecked ? 'checked' : ''}>
               ${g.name} <span style="font-size:11px; color:var(--text-muted);">(Guest)</span>
             </label>
             <button onclick="deleteGuestMember('${g.id}')" style="background: transparent; border: none; cursor: pointer; font-size: 12px; color: #ef4444;" title="刪除 Guest 隊友">🗑️</button>
@@ -1058,8 +1033,13 @@
       }
       if (window.store.teams) {
         Object.values(window.store.teams).forEach(team => {
-          if (team && team.memberCharIds) {
-            team.memberCharIds = team.memberCharIds.filter(id => id !== guestId);
+          if (team) {
+            if (team.memberTargets) {
+              team.memberTargets = team.memberTargets.filter(m => m.charId !== guestId);
+            }
+            if (team.memberCharIds) {
+              team.memberCharIds = team.memberCharIds.filter(id => id !== guestId);
+            }
           }
         });
       }
@@ -1081,13 +1061,18 @@
 
     const recordKey = `rec_${charId}_${bossId}_${entryIndex}`;
     const record = window.store.weeklyRecords[recordKey];
-    let currentMembers = [charId];
+    let currentTargets = [{ charId: charId, entryIndex: entryIndex }];
 
     if (record && record.teamId && window.store.teams[record.teamId]) {
-      currentMembers = window.store.teams[record.teamId].memberCharIds;
+      const team = window.store.teams[record.teamId];
+      if (team.memberTargets) {
+        currentTargets = team.memberTargets;
+      } else if (team.memberCharIds) {
+        currentTargets = team.memberCharIds.map(id => ({ charId: id, entryIndex: entryIndex }));
+      }
     }
 
-    renderPartySelectList(currentMembers, null, true);
+    renderPartySelectList(currentTargets, null, true);
 
     document.getElementById("partyModal").style.display = "flex";
   }
@@ -1095,63 +1080,77 @@
   function savePartyTeam() {
     const boss = window.config.bosses.find(b => b.id === editingBossId);
     const checkboxes = document.querySelectorAll('input[name="partyChar"]:checked');
-    let selectedCharIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    // 解析勾選的 "charId_entryIndex"
+    let selectedTargets = Array.from(checkboxes).map(cb => {
+      const parts = cb.value.split("_");
+      const entryIdx = parseInt(parts.pop(), 10);
+      const cId = parts.join("_");
+      return { charId: cId, entryIndex: entryIdx };
+    });
 
-    if (selectedCharIds.length === 0) {
-      selectedCharIds = [editingCharId];
+    if (selectedTargets.length === 0) {
+      selectedTargets = [{ charId: editingCharId, entryIndex: editingEntry }];
     }
 
-    if (selectedCharIds.length > boss.maxPartySize) {
-      alert(`該 BOSS 人數上限為 ${boss.maxPartySize} 人，你選擇了 ${selectedCharIds.length} 人！`);
+    if (selectedTargets.length > boss.maxPartySize) {
+      alert(`該 BOSS 人數上限為 ${boss.maxPartySize} 人，你選擇了 ${selectedTargets.length} 人！`);
       return;
     }
 
-    // 1. 找出變更前的舊隊伍成員
+    // 1. 找出變更前的舊隊伍成員標的
     const currentRecordKey = `rec_${editingCharId}_${editingBossId}_${editingEntry}`;
     const currentRecord = window.store.weeklyRecords[currentRecordKey];
-    let oldMemberIds = [];
+    let oldTargets = [];
     if (currentRecord && currentRecord.teamId && window.store.teams[currentRecord.teamId]) {
-      oldMemberIds = window.store.teams[currentRecord.teamId].memberCharIds || [];
+      const oldTeam = window.store.teams[currentRecord.teamId];
+      oldTargets = oldTeam.memberTargets || (oldTeam.memberCharIds || []).map(id => ({ charId: id, entryIndex: editingEntry }));
     }
 
     // 2. 建立新隊伍
-    const sortedIds = [...selectedCharIds].sort().join("_");
-    const sharedTeamId = `team_${editingBossId}_${editingEntry}_${sortedIds}`;
+    const sortedKey = selectedTargets.map(t => `${t.charId}:${t.entryIndex}`).sort().join("_");
+    const sharedTeamId = `team_${editingBossId}_${Date.now()}_${sortedKey}`;
 
     if (!window.store.teams) window.store.teams = {};
-    window.store.teams[sharedTeamId] = { id: sharedTeamId, memberCharIds: selectedCharIds };
+    window.store.teams[sharedTeamId] = { 
+      id: sharedTeamId, 
+      memberTargets: selectedTargets,
+      memberCharIds: selectedTargets.map(t => t.charId) // 相容保留
+    };
 
-    // 3. 更新目前被勾選的所有成員紀錄
-    selectedCharIds.forEach(cId => {
-      if (cId.startsWith("guest_")) return;
-      const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
+    // 3. 更新被勾選成員各自輪次的記錄
+    selectedTargets.forEach(target => {
+      if (target.charId.startsWith("guest_")) return;
+      const recKey = `rec_${target.charId}_${editingBossId}_${target.entryIndex}`;
       const oldRecord = window.store.weeklyRecords[recKey];
       window.store.weeklyRecords[recKey] = {
         bossId: editingBossId,
-        entryIndex: editingEntry,
+        entryIndex: target.entryIndex,
         teamId: sharedTeamId,
         isCompleted: oldRecord ? oldRecord.isCompleted : false
       };
     });
 
-    // 4. 🔥 【關鍵新增】：找出被踢出/取消勾選的舊成員，恢復成他們的單人預設隊伍
-    const removedMemberIds = oldMemberIds.filter(id => !selectedCharIds.includes(id));
-    removedMemberIds.forEach(cId => {
-      if (cId.startsWith("guest_")) return;
-      const defaultTeamId = `single_${cId}_${editingBossId}_${editingEntry}`;
-      const recKey = `rec_${cId}_${editingBossId}_${editingEntry}`;
+    // 4. 被踢出或取消勾選的舊成員，恢復成他們的單人預設隊伍
+    const removedTargets = oldTargets.filter(oldT => 
+      !selectedTargets.some(newT => newT.charId === oldT.charId && newT.entryIndex === oldT.entryIndex)
+    );
+
+    removedTargets.forEach(target => {
+      if (target.charId.startsWith("guest_")) return;
+      const defaultTeamId = `single_${target.charId}_${editingBossId}_${target.entryIndex}`;
+      const recKey = `rec_${target.charId}_${editingBossId}_${target.entryIndex}`;
       const oldRecord = window.store.weeklyRecords[recKey];
 
-      // 確保單人預設隊伍結構存在
       window.store.teams[defaultTeamId] = {
         id: defaultTeamId,
-        memberCharIds: [cId]
+        memberTargets: [{ charId: target.charId, entryIndex: target.entryIndex }],
+        memberCharIds: [target.charId]
       };
 
-      // 將該成員的記錄改回單人隊伍
       window.store.weeklyRecords[recKey] = {
         bossId: editingBossId,
-        entryIndex: editingEntry,
+        entryIndex: target.entryIndex,
         teamId: defaultTeamId,
         isCompleted: oldRecord ? oldRecord.isCompleted : false
       };
@@ -1174,26 +1173,19 @@
     modalBody.innerHTML = "";
 
     const resetableBosses = window.config.bosses.filter(b => b.allowReset);
-    
-    // 1. 取得當前排在最上方的 Primary Player 名字
     const primaryUser = getPrimaryUser();
-
-    // 2. 取得所有角色，並過濾出屬性為 Primary Player 的角色
     const allChars = getAllCharacters();
     let targetChars = allChars.filter(c => c.playerName === primaryUser);
 
-    // 防呆：如果沒有設定或找不到主要玩家的角色，預設顯示第一個玩家的角色
     if (targetChars.length === 0 && window.config.players && window.config.players.length > 0) {
       const firstPlayerName = window.config.players[0].name;
       targetChars = allChars.filter(c => c.playerName === firstPlayerName);
     }
 
-    // 3. 渲染過濾後的角色重置券 BOSS 設定
     if (targetChars.length === 0) {
       modalBody.innerHTML = `<div style="text-align:center; padding: 15px; color: #64748b;">⚠️ 尚未選擇主要玩家或該玩家無角色</div>`;
     } else {
       targetChars.forEach(c => {
-        // 只顯示：該角色 bossIds 有包含 且 支援重置券 (allowReset: true) 的 BOSS
         const availableResetBosses = resetableBosses.filter(b => c.bossIds && c.bossIds.includes(b.id));
 
         let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
@@ -1226,17 +1218,14 @@
           if (!c.resetBossIds) c.resetBossIds = [];
           const index = c.resetBossIds.indexOf(bossId);
           if (index > -1) {
-            // 取消勾選，直接移除
             c.resetBossIds.splice(index, 1);
           } else {
-            // 即將勾選：計算目前 BOSS 總數（一般刷 + 已有重置刷）
             const normalCount = c.bossIds ? c.bossIds.length : 0;
-            const resetCount = c.resetBossIds.length; // 目前已勾選的重置刷數量
+            const resetCount = c.resetBossIds.length;
             const totalAfterAdd = normalCount + resetCount + 1;
 
             if (totalAfterAdd > 12) {
               alert(`角色 [${c.name}] 的 BOSS 攻略數量已達 12 隻上限（一般 ${normalCount} 隻 + 重置 ${resetCount} 隻），無法再新增重置券！`);
-              // 還原 checkbox 狀態
               const checkboxes = document.querySelectorAll(`input[onchange*="${charId}"][onchange*="${bossId}"]`);
               checkboxes.forEach(cb => { cb.checked = false; });
               return;
@@ -1247,7 +1236,6 @@
       });
     });
 
-    // 直接更新雲端的 players 節點
     if (window.db && window.dbRef && window.dbSet) {
       const playersRef = window.dbRef(window.db, '/players');
       window.dbSet(playersRef, window.config.players);
@@ -1286,18 +1274,15 @@
     });
   }
 
-  // 取得當前設定的主要使用者（預設從 LocalStorage 拿）
   function getPrimaryUser() {
     return localStorage.getItem("preferred_primary_user") || "";
   }
 
-  // 當使用者切換選單時觸發
   function changePrimaryUser(userName) {
     localStorage.setItem("preferred_primary_user", userName);
-    renderApp(); // 重新渲染畫面
+    renderApp();
   }
 
-  // 更新下拉選單的選項內容
   function updateUserSelectOptions() {
     const select = document.getElementById("userSelect");
     if (!select) return;
@@ -1315,9 +1300,7 @@
     }
   }
 
-  // 通用的 Modal 背景點擊關閉函數
   function handleOverlayClick(event, closeFunction) {
-    // 只有當點擊目標是外層背景（非內部的 modal-content 白框）時才觸發關閉
     if (event.target === event.currentTarget) {
       if (typeof closeFunction === 'function') {
         closeFunction();
@@ -1325,7 +1308,6 @@
     }
   }
 
-  // 打開新增角色 Modal
   window.openAddCharacterModal = function() {
     const modal = document.getElementById("addCharacterModal");
     const playerSelect = document.getElementById("newCharPlayerSelect");
@@ -1334,10 +1316,8 @@
 
     if (!modal || !playerSelect || !bossListContainer) return;
 
-    // 清空輸入框
     nameInput.value = "";
 
-    // 1. 帶入玩家選項 (預設選中 Primary Player)
     playerSelect.innerHTML = "";
     const primaryUser = getPrimaryUser();
     if (window.config.players && Array.isArray(window.config.players)) {
@@ -1347,10 +1327,8 @@
       });
     }
 
-    // 2. 渲染所有 BOSS 勾選清單
     bossListContainer.innerHTML = "";
     if (window.config.bosses && Array.isArray(window.config.bosses)) {
-      // slice() 複製一份陣列避免影響原始 window.config.bosses 順序，再用 reverse() 倒序
       const reversedBosses = window.config.bosses.slice().reverse();
       
       reversedBosses.forEach(boss => {
@@ -1367,13 +1345,11 @@
     modal.style.display = "flex";
   };
 
-  // 關閉 Modal
   window.closeAddCharacterModal = function() {
     const modal = document.getElementById("addCharacterModal");
     if (modal) modal.style.display = "none";
   };
 
-  // 3. 儲存新角色至 Firebase
   window.submitNewCharacter = function() {
     const playerName = document.getElementById("newCharPlayerSelect").value;
     const charName = document.getElementById("newCharNameInput").value.trim();
@@ -1383,7 +1359,6 @@
       return;
     }
 
-    // 1. 蒐集勾選的 bossIds
     const selectedBossIds = [];
     const checkboxes = document.querySelectorAll(".new-char-boss-checkbox:checked");
     checkboxes.forEach(cb => selectedBossIds.push(cb.value));
@@ -1393,17 +1368,14 @@
       return;
     }
 
-    // 2. 找到對應玩家
     const playerIndex = window.config.players.findIndex(p => p.name === playerName);
     if (playerIndex === -1) {
       alert("找不到對應的玩家！");
       return;
     }
 
-    // 產生獨一無二的角色 ID (例如 char_p2_1710000000000)
     const newCharId = `char_p${playerIndex + 1}_${Date.now()}`;
 
-    // 構建符合 Firebase 結構的角色物件
     const newCharacter = {
       id: newCharId,
       name: charName,
@@ -1411,13 +1383,11 @@
       resetBossIds: []
     };
 
-    // 確保 characters 陣列存在並推入新角色
     if (!window.config.players[playerIndex].characters) {
       window.config.players[playerIndex].characters = [];
     }
     window.config.players[playerIndex].characters.push(newCharacter);
 
-    // 3. 專用 Firebase 寫入邏輯（使用宣告好的 window.db, window.dbRef, window.dbSet）
     if (window.db && window.dbRef && window.dbSet) {
       const playersRef = window.dbRef(window.db, 'players');
       
@@ -1436,9 +1406,6 @@
     }
   };
 
-  // ==========================================
-  // 編輯角色名稱邏輯
-  // ==========================================
   let renamingCharId = null;
 
   window.openRenameCharModal = function(charId, currentName) {
@@ -1493,36 +1460,23 @@
     }
   };
 
-  // ==========================================
-  // 主題記憶與切換邏輯
-  // ==========================================
-
-  // 1. 立即讀取 localStorage 並套用至 <html> 或 <body>
   (function applyThemeImmediately() {
     const savedTheme = localStorage.getItem("theme");
     const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-    // 只要儲存為 dark，或是沒有儲存但系統是深色，就加上 dark-mode
     if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-      document.documentElement.classList.add("dark-mode"); // 建議加在 html 避免 body 還沒 ready
+      document.documentElement.classList.add("dark-mode");
     } else {
       document.documentElement.classList.remove("dark-mode");
     }
   })();
 
-  // 2. 切換按鈕的主功能
   window.toggleTheme = function() {
-    // 切換 <html> 上的 dark-mode class
     const isDark = document.documentElement.classList.toggle("dark-mode");
-    
-    // 寫入 localStorage 記憶設定
     localStorage.setItem("theme", isDark ? "dark" : "light");
-    
-    // 更新按鈕圖示與文字
     updateThemeButton(isDark);
   };
 
-  // 3. 更新按鈕文字與圖示
   function updateThemeButton(isDark) {
     const iconEl = document.getElementById("themeIcon");
     const textEl = document.getElementById("themeText");
@@ -1533,15 +1487,10 @@
     }
   }
 
-  // 4. 當畫面 DOM 載入完畢後，同步按鈕狀態
   document.addEventListener("DOMContentLoaded", function() {
     const isDark = document.documentElement.classList.contains("dark-mode");
     updateThemeButton(isDark);
   });
-
-  // ==========================================
-  // 新增玩家邏輯 (搭配 Firebase Realtime Database)
-  // ==========================================
 
   function openAddPlayerModal() {
     document.getElementById("newPlayerName").value = "";
@@ -1560,34 +1509,25 @@
       return;
     }
 
-    // 1. 取得當前的 players 陣列 (若無則預設為空陣列)
     const currentPlayers = window.config.players || [];
 
-    // 2. 檢查名稱是否重複
     const isExist = currentPlayers.some(p => p.name === playerName);
     if (isExist) {
       alert("該玩家名稱已存在！");
       return;
     }
 
-    // 3. 建立新玩家物件
     const newPlayer = {
       name: playerName,
-      characters: [] // 初始角色陣列為空
+      characters: []
     };
 
-    // 4. 產生更新後的玩家列表
     const updatedPlayers = [...currentPlayers, newPlayer];
 
     try {
-      // 5. 將新的 players 陣列寫入 Firebase 的 '/players' 路徑
       const playersRef = window.dbRef(window.db, '/players');
       await window.dbSet(playersRef, updatedPlayers);
-
-      // 成功寫入後關閉 Modal
-      // 注意：不需要手動呼叫 renderApp()，因為 onValue(rootRef) 會自動被觸發並重繪！
       closeAddPlayerModal();
-      
     } catch (error) {
       console.error("寫入 Firebase 失敗：", error);
       alert("新增玩家失敗，請稍後再試！");
@@ -1600,10 +1540,8 @@
   <div class="header">
     <h2>🎮 每週 BOSS 攻略備忘錄</h2>
     <div class="controls" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-      <!-- 新增這個切換選單 -->
       <label for="userSelect" style="font-weight: bold; font-size: 14px;">排在最上方：</label>
       <select id="userSelect" onchange="changePrimaryUser(this.value)" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;">
-        <!-- 選項會由 JS 自動帶入 -->
       </select>
       <button class="btn" onclick="openAddCharacterModal()">➕ 新增角色</button>
       <button class="btn" onclick="openAddPlayerModal()">+ 新增玩家</button>
@@ -1612,17 +1550,13 @@
       <button class="btn btn-secondary" onclick="toggleAllPlayers(false)">📂 全部展開</button>
       <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
       <button class="btn btn-reset" onclick="resetWeeklyStatus()">🔄 每週進度重置</button>
-      <!-- <button class="btn btn-reset" onclick="clearAllData()">🗑️ 清除快取並重整</button> -->
       <button class="theme-toggle-btn" onclick="toggleTheme()">
         <span id="themeIcon">🌙</span> <span id="themeText">深色模式</span>
       </button>
     </div>
   </div>
 
-  <!-- 角色橫幅列表容器 -->
   <div id="characterList"></div>
-
-  <!-- Guest 隊友清單容器 (最下方，預設收合) -->
   <div id="guestSectionContainer"></div>
 
   <!-- 組隊設定彈窗 (右鍵點擊觸發) -->
@@ -1653,19 +1587,16 @@
     <div class="modal-content" style="max-width: 480px; text-align: left;">
       <h3 style="margin-top: 0; margin-bottom: 12px;">➕ 新增角色</h3>
       
-      <!-- 1. 選擇玩家 -->
       <div style="margin-bottom: 12px;">
         <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 14px;">選擇玩家：</label>
         <select id="newCharPlayerSelect" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;"></select>
       </div>
 
-      <!-- 2. 輸入角色名稱 -->
       <div style="margin-bottom: 12px;">
         <label style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 14px;">角色名稱：</label>
         <input type="text" id="newCharNameInput" placeholder="例如：KinBata" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px; box-sizing: border-box;" />
       </div>
 
-      <!-- 3. 勾選 BOSS 清單 -->
       <div style="margin-bottom: 16px;">
         <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS <span id="newCharBossCount" style="font-weight: normal; font-size: 13px; color: #64748b;">(已選 0 / 12)</span>：</label>
         <div id="newCharBossList" style="max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;"></div>
