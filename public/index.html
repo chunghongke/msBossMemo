@@ -911,6 +911,7 @@
     });
 
     renderGuestSection();
+    updateResetTimer();
     initDragAndDrop();
     playBossCellReorderAnimation(container, oldBossCellPositions);
   }
@@ -2042,12 +2043,50 @@
 
       container.dataset.dragInited = "true"; // 避免重複繫結
     }
+
+    // 計算距離每週四 00:00 的倒數計時 (精確至分鐘，格式為天 時 分)
+    function updateResetTimer() {
+      const timerEl = document.getElementById("reset-timer");
+      if (!timerEl) return;
+
+      const now = new Date();
+      const day = now.getDay(); // 0 = 週日, 4 = 週四
+      
+      // 計算距離下個週四的天數
+      let daysUntilThursday = (4 - day + 7) % 7;
+      // 若今天是週四，且已經超過 00:00，則強制倒數下週四
+      if (daysUntilThursday === 0 && (now.getHours() > 0 || now.getMinutes() > 0)) {
+          daysUntilThursday = 7;
+      }
+
+      // 設定下一個重置時間點
+      let nextThursday = new Date();
+      nextThursday.setDate(now.getDate() + daysUntilThursday);
+      nextThursday.setHours(0, 0, 0, 0);
+
+      const diff = nextThursday - now;
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      // 顯示格式：天 時 分
+      timerEl.innerText = `⏳ 距離重置：${days}天 ${hours}時 ${minutes}分`;
+    }
+
+    // 每 60 秒更新一次
+    setInterval(updateResetTimer, 60000);
   </script>
 </head>
 <body>
 
   <div class="header">
-    <h2>🎮 每週 BOSS 攻略備忘錄</h2>
+    <div style="display: flex; align-items: center; gap: 15px;">
+      <h2>每週 BOSS 攻略備忘錄</h2>
+      <div id="reset-timer" style="font-size: 14px; font-weight: bold; color: #0891b2; background: #e0f2fe; padding: 4px 10px; border-radius: 6px;">
+        計算中...
+      </div>
+    </div>
     <div class="controls" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
       <label for="userSelect" style="font-weight: bold; font-size: 14px;">排在最上方：</label>
       <select id="userSelect" onchange="changePrimaryUser(this.value)" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;">
