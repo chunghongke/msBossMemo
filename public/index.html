@@ -819,6 +819,7 @@
 
     const primaryUser = getPrimaryUser();
     const savedOrder = getPlayerOrder();
+    const collapsedKeys = getCollapsedPlayerKeys();
 
     // 排序邏輯：指定主要玩家置頂，其餘依照 localStorage 拖曳順序排列
     const sortedPlayers = [...window.config.players].sort((a, b) => {
@@ -837,15 +838,17 @@
     sortedPlayers.forEach((p, pIdx) => {
       const playerId = `p_${pIdx}`;
       const isPrimary = p.name === primaryUser;
+      const isCollapsed = collapsedKeys.includes(p.name);
 
       let playerHTML = `
-        <div class="player-card ${isPrimary ? 'primary-player' : ''}" 
+        <div class="player-card ${isPrimary ? 'primary-player' : ''} ${isCollapsed ? 'is-collapsed' : ''}" 
             id="player-card-${playerId}" 
             draggable="true" 
-            data-player-name="${p.name}">
+            data-player-name="${p.name}"
+            data-collapse-key="${p.name}">
           <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
             <span>👤 玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}</span>
-            <span class="collapse-icon" id="collapse-icon-${playerId}">▼ 收合</span>
+            <span class="collapse-icon" id="collapse-icon-${playerId}">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
           </div>
           <div class="player-characters">
       `;
@@ -1017,6 +1020,10 @@
     if (guestCard) {
       guestCard.classList.remove("is-collapsed");
       if (icon) icon.innerText = "▼ 收合";
+
+      const collapsedKeys = getCollapsedPlayerKeys().filter(k => k !== "guests");
+      saveCollapsedPlayerKeys(collapsedKeys);
+
       guestCard.scrollIntoView({ behavior: "smooth" });
     }
   };
@@ -1025,17 +1032,16 @@
     const container = document.getElementById("guestSectionContainer");
     if (!container) return;
 
-    const existingCard = document.getElementById("player-card-guests");
-    const wasCollapsed = existingCard ? existingCard.classList.contains("is-collapsed") : true;
+    const isCollapsed = getCollapsedPlayerKeys().includes("guests");
 
     const guests = (window.store && window.store.guests) ? window.store.guests : [];
     const guestCount = guests.length;
 
     let guestSectionHTML = `
-      <div class="player-card ${wasCollapsed ? 'is-collapsed' : ''}" id="player-card-guests" style="margin-top: 24px;">
+      <div class="player-card ${isCollapsed ? 'is-collapsed' : ''}" id="player-card-guests" data-collapse-key="guests" style="margin-top: 24px;">
         <div class="player-header" onclick="togglePlayerCollapse('guests')">
           <span>👤 臨時 Guest 隊友清單 (共 ${guestCount} 位)</span>
-          <span class="collapse-icon" id="collapse-icon-guests">${wasCollapsed ? '▲ 展開' : '▼ 收合'}</span>
+          <span class="collapse-icon" id="collapse-icon-guests">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
         </div>
         <div class="player-characters">
     `;
@@ -1713,22 +1719,36 @@
     if (icon) {
       icon.innerText = isCollapsed ? "▲ 展開" : "▼ 收合";
     }
+
+    const collapseKey = card.dataset.collapseKey;
+    if (collapseKey) {
+      const collapsedKeys = getCollapsedPlayerKeys().filter(k => k !== collapseKey);
+      if (isCollapsed) collapsedKeys.push(collapseKey);
+      saveCollapsedPlayerKeys(collapsedKeys);
+    }
   }
 
   function toggleAllPlayers(shouldCollapse) {
     const cards = document.querySelectorAll('.player-card');
+    const collapsedKeys = [];
     cards.forEach(card => {
       if (shouldCollapse) {
         card.classList.add('is-collapsed');
       } else {
         card.classList.remove('is-collapsed');
       }
-      
+
       const icon = card.querySelector('.collapse-icon');
       if (icon) {
         icon.innerText = shouldCollapse ? "▲ 展開" : "▼ 收合";
       }
+
+      if (shouldCollapse && card.dataset.collapseKey) {
+        collapsedKeys.push(card.dataset.collapseKey);
+      }
     });
+
+    saveCollapsedPlayerKeys(collapsedKeys);
   }
 
   function getPrimaryUser() {
@@ -2068,6 +2088,21 @@
     // 儲存指定玩家底下的角色排序至 LocalStorage
     function saveCharacterOrder(playerName, orderArray) {
       localStorage.setItem(`character_custom_order_${playerName}`, JSON.stringify(orderArray));
+    }
+
+    // 取得目前收合中的玩家區塊清單（用玩家名稱 / "guests" 當 key，不用位置索引，避免排序變動後對錯人）
+    function getCollapsedPlayerKeys() {
+      const saved = localStorage.getItem("collapsed_player_cards");
+      if (saved === null) {
+        // 從未存過：維持原本的預設行為，Guest 區塊預設收合，其餘玩家預設展開
+        return ["guests"];
+      }
+      return JSON.parse(saved);
+    }
+
+    // 儲存目前收合中的玩家區塊清單至 LocalStorage
+    function saveCollapsedPlayerKeys(keysArray) {
+      localStorage.setItem("collapsed_player_cards", JSON.stringify(keysArray));
     }
 
     // 初始化拖曳事件 (使用 Event Delegation，同時支援玩家排序與角色排序)
