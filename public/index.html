@@ -375,8 +375,37 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      margin: 16px 0;
+      margin: 0;
       text-align: left;
+    }
+
+    .party-modal-content {
+      width: min(720px, 92vw);
+    }
+
+    .party-columns {
+      display: flex;
+      gap: 16px;
+      margin: 16px 0;
+      align-items: flex-start;
+    }
+
+    .party-column {
+      flex: 1;
+      min-width: 0;
+      max-height: 340px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    @media (max-width: 640px) {
+      .party-columns {
+        flex-direction: column;
+      }
+      .party-column {
+        width: 100%;
+        max-height: 220px;
+      }
     }
 
     /* Modal 內部的 input / select 在深色模式下的適應 */
@@ -626,11 +655,16 @@
               memberTargets: [{ charId: c.id, entryIndex: entry }]
             };
             window.store.weeklyRecords[recordKey] = {
+              charId: c.id,
               bossId: boss.id,
               entryIndex: entry,
               teamId: defaultTeamId,
               isCompleted: false
             };
+            updated = true;
+          } else if (!window.store.weeklyRecords[recordKey].charId) {
+            // 💡 資料搬遷：舊資料沒有 charId 欄位，這裡本來就已經知道正確的 c.id 是誰，直接補上，不需要用字串猜
+            window.store.weeklyRecords[recordKey].charId = c.id;
             updated = true;
           }
         });
@@ -646,12 +680,9 @@
     let count = 0;
     if (!window.store.weeklyRecords) return 0;
     
-    Object.keys(window.store.weeklyRecords).forEach(recordKey => {
-      if (recordKey.startsWith(`rec_${charId}_`)) {
-        const record = window.store.weeklyRecords[recordKey];
-        if (record && record.isCompleted) {
-          count++;
-        }
+    Object.values(window.store.weeklyRecords).forEach(record => {
+      if (record && record.charId === charId && record.isCompleted) {
+        count++;
       }
     });
     return count;
@@ -1038,12 +1069,10 @@
 
       if (confirm(`確定要重置主要玩家 [${primaryUser}] 本週所有角色的 BOSS 攻略狀態嗎？\n(其他玩家進度與組隊資訊將完整保留)`)) {
         if (window.store && window.store.weeklyRecords) {
-          Object.keys(window.store.weeklyRecords).forEach(key => {
-            primaryCharIds.forEach(charId => {
-              if (key.startsWith(`rec_${charId}_`)) {
-                window.store.weeklyRecords[key].isCompleted = false;
-              }
-            });
+          Object.values(window.store.weeklyRecords).forEach(record => {
+            if (record && primaryCharIds.has(record.charId)) {
+              record.isCompleted = false;
+            }
           });
         }
         saveStoreToCloud();
@@ -1055,9 +1084,94 @@
   let editingBossId = null;
   let editingEntry = 1;
 
+  // 列出「這隻 BOSS 目前已經組好、還有空位」的隊伍，供快速一鍵加入（不分首刷/重置輪次）
+  function renderExistingTeamsQuickJoin() {
+    const container = document.getElementById("existingTeamsList");
+    if (!container) return;
+
+    const boss = window.config.bosses.find(b => b.id === editingBossId);
+    const maxPartySize = boss ? boss.maxPartySize : 1;
+
+    // 掃描這隻 BOSS 底下所有的 weeklyRecords，收集不重複的 teamId
+    // 💡 用 record 自己存的 bossId 欄位精準比對，不要用 key 字串做 substring 判斷
+    //    （否則像 "chaos" 跟 "chaos_hard" 這種一個是另一個子字串的情況，會被誤判成同一隻 BOSS）
+    const teamIds = new Set();
+    if (window.store.weeklyRecords) {
+      Object.values(window.store.weeklyRecords).forEach(rec => {
+        if (rec && rec.bossId === editingBossId && rec.teamId) {
+          teamIds.add(rec.teamId);
+        }
+      });
+    }
+
+    const selfKey = `${editingCharId}:${editingEntry}`;
+    const teamCards = [];
+
+    teamIds.forEach(teamId => {
+      const team = window.store.teams ? window.store.teams[teamId] : null;
+      if (!team) return;
+
+      const members = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: editingEntry }));
+
+      // 排除單人的預設隊伍，只列出「真的組過」的隊伍
+      if (members.length <= 1) return;
+
+      const isSelfInTeam = members.some(m => `${m.charId}:${m.entryIndex}` === selfKey);
+      const isFull = members.length >= maxPartySize;
+
+      const memberNames = members.map(m => {
+        const name = getCharName(m.charId);
+        return m.entryIndex === 2 ? `${name}(重置)` : name;
+      }).join("、");
+
+      teamCards.push({ teamId, memberNames, count: members.length, disabled: isSelfInTeam || isFull, isSelfInTeam, isFull });
+    });
+
+    if (teamCards.length === 0) {
+      container.innerHTML = "";
+      return;
+    }
+
+    let html = `<div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">👥 現有隊伍快速加入：</div>`;
+    html += `<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">`;
+
+    teamCards.forEach(t => {
+      const reasonTag = t.isSelfInTeam ? "（已在隊中）" : t.isFull ? "（已滿員）" : "";
+      html += `
+        <button type="button" class="btn btn-secondary" style="text-align:left; font-size:12px; padding:6px 10px; ${t.disabled ? 'opacity:0.5; cursor:not-allowed;' : ''}"
+          ${t.disabled ? 'disabled' : `onclick="joinExistingTeam('${t.teamId}')"`}>
+          ${t.memberNames}（${t.count}人）${reasonTag}
+        </button>`;
+    });
+
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+
+  // 點擊「現有隊伍」時，把該隊成員疊加勾選到目前的清單上（不取代既有勾選）
+  function joinExistingTeam(teamId) {
+    const team = window.store.teams ? window.store.teams[teamId] : null;
+    if (!team) return;
+
+    const members = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: editingEntry }));
+
+    const existingCheckboxes = document.querySelectorAll('input[name="partyChar"]:checked');
+    const checkedKeys = new Set(Array.from(existingCheckboxes).map(cb => cb.value));
+    members.forEach(m => checkedKeys.add(`${m.charId}_${m.entryIndex}`));
+
+    renderPartySelectList(Array.from(checkedKeys).map(k => {
+      const parts = k.split("_");
+      const entryIdx = parseInt(parts.pop(), 10);
+      return { charId: parts.join("_"), entryIndex: entryIdx };
+    }), null, true);
+
+    updatePartyCheckboxStates();
+  }
+
   function renderPartySelectList(initialMemberTargets = [], autoCheckGuestId = null, isFreshOpen = false) {
       const listContainer = document.getElementById("partySelectList");
-      if (!listContainer) return;
+      const guestContainer = document.getElementById("guestSelectList");
+      if (!listContainer || !guestContainer) return;
 
       const boss = window.config.bosses.find(b => b.id === editingBossId);
       const maxPartySize = boss ? boss.maxPartySize : 1;
@@ -1139,21 +1253,22 @@
         });
       });
 
-      html += `<hr style="border:0; border-top:1px var(--border-color) solid; margin: 12px 0 10px 0;">`;
-      html += `
+      listContainer.innerHTML = html;
+
+      let guestHtml = `
         <div style="font-weight: bold; font-size: 13px; margin-bottom: 6px; color: var(--title-color);">👤 Guest 臨時隊友：</div>
         <div style="display: flex; gap: 6px; margin-bottom: 8px;">
           <input type="text" id="newGuestNameInput" placeholder="輸入 Guest 名字" style="flex: 1; padding: 5px 8px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);" onkeypress="if(event.key==='Enter'){ event.preventDefault(); addGuestMember(); }" />
           <button class="btn" style="padding: 4px 10px; font-size: 12px; white-space: nowrap;" onclick="addGuestMember()">➕ 新增</button>
         </div>
-        <div style="max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
       `;
 
       if (window.store && window.store.guests && window.store.guests.length > 0) {
         window.store.guests.forEach(g => {
           const targetKey = `${g.id}_1`;
           const isChecked = checkedKeys.includes(targetKey);
-          html += `
+          guestHtml += `
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label style="cursor:pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; color: #0284c7;">
                 <input type="checkbox" name="partyChar" value="${targetKey}" 
@@ -1166,11 +1281,11 @@
             </div>`;
         });
       } else {
-        html += `<div style="font-size: 12px; color: var(--text-muted); font-style: italic;">目前尚無 Guest 隊友，可在上方輸入新增。</div>`;
+        guestHtml += `<div style="font-size: 12px; color: var(--text-muted); font-style: italic;">目前尚無 Guest 隊友，可在上方輸入新增。</div>`;
       }
-      html += `</div>`;
+      guestHtml += `</div>`;
 
-      listContainer.innerHTML = html;
+      guestContainer.innerHTML = guestHtml;
 
       // 渲染完成後立刻刷新一次狀態
       updatePartyCheckboxStates();
@@ -1243,6 +1358,7 @@
       }
     }
 
+    renderExistingTeamsQuickJoin();
     renderPartySelectList(currentTargets, null, true);
 
     document.getElementById("partyModal").style.display = "flex";
@@ -1321,6 +1437,7 @@
       const recKey = `rec_${target.charId}_${editingBossId}_${target.entryIndex}`;
       const oldRecord = window.store.weeklyRecords[recKey];
       window.store.weeklyRecords[recKey] = {
+        charId: target.charId,
         bossId: editingBossId,
         entryIndex: target.entryIndex,
         teamId: sharedTeamId,
@@ -1350,6 +1467,7 @@
       };
 
       window.store.weeklyRecords[recKey] = {
+        charId: target.charId,
         bossId: editingBossId,
         entryIndex: target.entryIndex,
         teamId: defaultTeamId,
@@ -1370,6 +1488,10 @@
     document.getElementById("partyModal").style.display = "none";
     const listContainer = document.getElementById("partySelectList");
     if (listContainer) listContainer.innerHTML = "";
+    const guestContainer = document.getElementById("guestSelectList");
+    if (guestContainer) guestContainer.innerHTML = "";
+    const teamsContainer = document.getElementById("existingTeamsList");
+    if (teamsContainer) teamsContainer.innerHTML = "";
   }
 
   window.openResetConfigModal = function() {
@@ -1948,10 +2070,20 @@
 
   <!-- 組隊設定彈窗 (右鍵點擊觸發) -->
   <div id="partyModal" class="modal" onclick="handleOverlayClick(event, closePartyModal)">
-    <div class="modal-content">
+    <div class="modal-content party-modal-content">
       <h3 id="partyModalTitle">編輯隊伍成員</h3>
       <p style="font-size: 12px; color: #64748b;" id="partyModalSubtitle"></p>
-      <div id="partySelectList" class="party-select-list"></div>
+      <div class="party-columns">
+        <div class="party-column">
+          <div id="existingTeamsList" class="existing-teams-list"></div>
+        </div>
+        <div class="party-column">
+          <div id="partySelectList" class="party-select-list"></div>
+        </div>
+        <div class="party-column">
+          <div id="guestSelectList" class="party-select-list"></div>
+        </div>
+      </div>
       <div style="display:flex; justify-content:space-between; margin-top:16px;">
         <button class="btn btn-secondary" onclick="closePartyModal()">取消</button>
         <button class="btn" onclick="savePartyTeam()">儲存變更</button>
