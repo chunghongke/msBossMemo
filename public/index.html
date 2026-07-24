@@ -1251,8 +1251,8 @@
   function savePartyTeam() {
     const boss = window.config.bosses.find(b => b.id === editingBossId);
     const checkboxes = document.querySelectorAll('input[name="partyChar"]:checked');
-    
-    // 解析勾選的 "charId_entryIndex"
+
+    // 解析勾選的 "charId_entryIndex" —— 這是使用者在這個 modal 裡「親眼看到並主動勾選」的成員
     let selectedTargets = Array.from(checkboxes).map(cb => {
       const parts = cb.value.split("_");
       const entryIdx = parseInt(parts.pop(), 10);
@@ -1264,33 +1264,59 @@
       selectedTargets = [{ charId: editingCharId, entryIndex: editingEntry }];
     }
 
-    if (selectedTargets.length > boss.maxPartySize) {
-      alert(`該 BOSS 人數上限為 ${boss.maxPartySize} 人，你選擇了 ${selectedTargets.length} 人！`);
+    const targetKey = (t) => `${t.charId}:${t.entryIndex}`;
+
+    // 找出「選取清單中每一位成員」各自原本所屬的隊伍（正式角色才有自己的 record，Guest 沒有）
+    const oldTeamsByTarget = new Map(); // key -> members[]
+    selectedTargets.forEach(sel => {
+      if (sel.charId.startsWith("guest_")) return;
+      const recKey = `rec_${sel.charId}_${editingBossId}_${sel.entryIndex}`;
+      const rec = window.store.weeklyRecords[recKey];
+      if (rec && rec.teamId && window.store.teams[rec.teamId]) {
+        const oldTeam = window.store.teams[rec.teamId];
+        const members = oldTeam.memberTargets || (oldTeam.memberCharIds || []).map(id => ({ charId: id, entryIndex: sel.entryIndex }));
+        oldTeamsByTarget.set(targetKey(sel), members);
+      }
+    });
+
+    // 1. 自動合併：這次新勾選的成員（不含正在編輯的 editingCharId 自己），
+    //    如果原本就在其他隊伍，把該隊隊友一併拉進來（editingCharId 自己的舊隊伍成員已經是這個 modal 一開始就顯示、可被使用者親自勾/取消的清單，不強制合併，尊重使用者的明確取消勾選）
+    const finalMap = new Map();
+    selectedTargets.forEach(t => finalMap.set(targetKey(t), t));
+
+    const autoMergedNames = [];
+    selectedTargets.forEach(sel => {
+      if (sel.charId === editingCharId) return;
+      const oldMembers = oldTeamsByTarget.get(targetKey(sel)) || [];
+      oldMembers.forEach(m => {
+        if (!finalMap.has(targetKey(m))) {
+          finalMap.set(targetKey(m), m);
+          autoMergedNames.push(getCharName(m.charId));
+        }
+      });
+    });
+
+    const finalTargets = Array.from(finalMap.values());
+
+    if (finalTargets.length > boss.maxPartySize) {
+      const mergedNote = autoMergedNames.length > 0 ? `（含自動合併的隊友：${autoMergedNames.join(", ")}）` : "";
+      alert(`該 BOSS 人數上限為 ${boss.maxPartySize} 人，合併後共 ${finalTargets.length} 人${mergedNote}，請手動調整勾選！`);
       return;
     }
 
-    // 1. 找出變更前的舊隊伍成員標的
-    const currentRecordKey = `rec_${editingCharId}_${editingBossId}_${editingEntry}`;
-    const currentRecord = window.store.weeklyRecords[currentRecordKey];
-    let oldTargets = [];
-    if (currentRecord && currentRecord.teamId && window.store.teams[currentRecord.teamId]) {
-      const oldTeam = window.store.teams[currentRecord.teamId];
-      oldTargets = oldTeam.memberTargets || (oldTeam.memberCharIds || []).map(id => ({ charId: id, entryIndex: editingEntry }));
-    }
-
     // 2. 建立新隊伍
-    const sortedKey = selectedTargets.map(t => `${t.charId}:${t.entryIndex}`).sort().join("_");
+    const sortedKey = finalTargets.map(t => `${t.charId}:${t.entryIndex}`).sort().join("_");
     const sharedTeamId = `team_${editingBossId}_${Date.now()}_${sortedKey}`;
 
     if (!window.store.teams) window.store.teams = {};
     window.store.teams[sharedTeamId] = { 
       id: sharedTeamId, 
-      memberTargets: selectedTargets,
-      memberCharIds: selectedTargets.map(t => t.charId) // 相容保留
+      memberTargets: finalTargets,
+      memberCharIds: finalTargets.map(t => t.charId) // 相容保留
     };
 
-    // 3. 更新被勾選成員各自輪次的記錄
-    selectedTargets.forEach(target => {
+    // 3. 更新最終隊伍成員各自輪次的記錄
+    finalTargets.forEach(target => {
       if (target.charId.startsWith("guest_")) return;
       const recKey = `rec_${target.charId}_${editingBossId}_${target.entryIndex}`;
       const oldRecord = window.store.weeklyRecords[recKey];
@@ -1302,10 +1328,14 @@
       };
     });
 
-    // 4. 被踢出或取消勾選的舊成員，恢復成他們的單人預設隊伍
-    const removedTargets = oldTargets.filter(oldT => 
-      !selectedTargets.some(newT => newT.charId === oldT.charId && newT.entryIndex === oldT.entryIndex)
-    );
+    // 4. 清理：這次牽涉到的所有舊隊伍成員（聯集），如果最後沒有留在新隊伍裡，恢復成他們的單人預設隊伍
+    //    （用聯集而非只看 editingCharId 自己的舊隊伍，才不會漏掉像 B 這種「被間接牽連但沒被看到」的成員）
+    const unionOldMap = new Map();
+    oldTeamsByTarget.forEach(members => {
+      members.forEach(m => unionOldMap.set(targetKey(m), m));
+    });
+
+    const removedTargets = Array.from(unionOldMap.values()).filter(oldT => !finalMap.has(targetKey(oldT)));
 
     removedTargets.forEach(target => {
       if (target.charId.startsWith("guest_")) return;
@@ -1330,6 +1360,10 @@
     saveStoreToCloud();
     renderApp();
     closePartyModal();
+
+    if (autoMergedNames.length > 0) {
+      alert(`已自動將以下隊友一併加入隊伍：${autoMergedNames.join(", ")}`);
+    }
   }
 
   function closePartyModal() {
