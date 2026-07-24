@@ -801,6 +801,8 @@
         characters.forEach(c => {
           const count = getCharacterCompletedCount(c.id);
           const isFull = count >= 12;
+          let selectedBossCount = c.bossIds ? c.bossIds.length : 0;
+          selectedBossCount += c.resetBossIds ? c.resetBossIds.length : 0;
 
           playerHTML += `
             <div class="character-card" draggable="true" data-char-id="${c.id}" data-player-name="${p.name}">
@@ -824,7 +826,7 @@
                     🖊️
                   </button>
                 </div>
-                <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / 12</span>
+                <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / ${selectedBossCount}</span>
               </div>
               <div class="boss-grid">
           `;
