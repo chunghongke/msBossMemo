@@ -331,6 +331,11 @@
       color: var(--text-completed);
     }
 
+    .boss-cell.cross-diff-reset {
+      border: 2px dashed #d97706 !important;
+      box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.25) inset;
+    }
+
     .party-badge {
       font-size: 10px;
       padding: 1px 6px;
@@ -390,12 +395,25 @@
       align-items: flex-start;
     }
 
+    body.modal-open-lock {
+      overflow: hidden;
+    }
+
+    .modal-content {
+      overscroll-behavior: contain;
+    }
+
     .party-column {
       flex: 1;
       min-width: 0;
       max-height: 340px;
       overflow-y: auto;
       padding-right: 4px;
+    }
+
+    .party-column,
+    .reset-char-column {
+      overscroll-behavior: contain;
     }
 
     @media (max-width: 640px) {
@@ -405,6 +423,49 @@
       .party-column {
         width: 100%;
         max-height: 220px;
+      }
+    }
+
+    .reset-modal-content {
+      width: min(900px, 94vw);
+    }
+
+    .reset-char-columns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 12px 0;
+      align-items: flex-start;
+    }
+
+    .reset-char-column {
+      flex: 1 1 220px;
+      max-width: 260px;
+      min-width: 200px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0 12px 10px 12px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .reset-char-column-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--modal-bg);
+      padding: 10px 0 6px 0;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    @media (max-width: 640px) {
+      .reset-char-columns {
+        flex-direction: column;
+      }
+      .reset-char-column {
+        max-width: 100%;
+        flex: 1 1 auto;
       }
     }
 
@@ -564,7 +625,10 @@
               targetChar.bossIds = selectedBossIds;
               
               if (targetChar.resetBossIds) {
-                targetChar.resetBossIds = targetChar.resetBossIds.filter(bId => selectedBossIds.includes(bId));
+                // 💡 重置券可能是「跳難度」設定的（reset boss id 不在 bossIds 裡，例如困難->極限）
+                //    只要該重置目標所屬的 BOSS 群組，角色還有排定任一難度，就保留；群組整個被移除才清掉
+                const selectedGroupKeys = new Set(selectedBossIds.map(bId => getBossGroupKey(bId)));
+                targetChar.resetBossIds = targetChar.resetBossIds.filter(bId => selectedGroupKeys.has(getBossGroupKey(bId)));
               }
               
               updated = true;
@@ -627,6 +691,15 @@
       if (guest) return `${guest.name} (G)`;
     }
     return charId;
+  }
+
+  // 依照 boss id 常見的難度後綴，算出「群組 key」，例如 kalos_hard / kalos_extreme 都屬於 "kalos" 群組
+  const BOSS_DIFFICULTY_SUFFIXES = ["_easy", "_normal", "_hard", "_extreme"];
+  function getBossGroupKey(bossId) {
+    for (const suffix of BOSS_DIFFICULTY_SUFFIXES) {
+      if (bossId.endsWith(suffix)) return bossId.slice(0, -suffix.length);
+    }
+    return bossId; // 沒有符合已知難度後綴的，自成一群
   }
 
   function ensureDefaultSingleTeams() {
@@ -834,16 +907,17 @@
           const bossCellEntries = [];
 
           window.config.bosses.forEach(boss => {
-            if (c.bossIds && Array.isArray(c.bossIds) && c.bossIds.length > 0 && !c.bossIds.includes(boss.id)) {
-              return;
-            }
+            const inBossIds = !c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(boss.id);
+            const inResetBossIds = c.resetBossIds && c.resetBossIds.includes(boss.id);
+
+            // 這個 boss 既不是角色本來排定的難度，也沒有設定重置券打這裡，跟這個角色完全無關，略過
+            if (!inBossIds && !inResetBossIds) return;
 
             const maxEntries = boss.allowReset ? 2 : 1;
 
             for (let entry = 1; entry <= maxEntries; entry++) {
-              if (entry === 2 && (!c.resetBossIds || !c.resetBossIds.includes(boss.id))) {
-                continue;
-              }
+              if (entry === 1 && !inBossIds) continue;   // entry 1（首次刷）只有角色本來排定的難度才顯示
+              if (entry === 2 && !inResetBossIds) continue; // entry 2（重置刷）只有設定重置券打這個難度才顯示
 
               const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
               const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
@@ -873,16 +947,35 @@
                     }).join(", ")
                   : '單人';
 
-                const bossDisplayName = entry === 2 ? `${boss.name}(重置)` : boss.name;
+                // 判斷這個重置格是不是「跳難度」用的：角色本來排定的難度清單裡沒有這個 boss.id，
+                // 代表這個重置券不是同難度多刷一次，而是拿去打了群組裡的另一個難度
+                const isCrossDifficultyReset = entry === 2 && c.bossIds && !c.bossIds.includes(boss.id);
+
+                let sourceBossLabel = "";
+                if (isCrossDifficultyReset) {
+                  const groupKey = getBossGroupKey(boss.id);
+                  const sourceBoss = (c.bossIds || [])
+                    .map(bId => window.config.bosses.find(b => b.id === bId))
+                    .find(b => b && getBossGroupKey(b.id) === groupKey);
+                  sourceBossLabel = sourceBoss ? sourceBoss.name : "其他難度";
+                }
+
+                const bossDisplayName = entry === 2
+                  ? (isCrossDifficultyReset ? `🎟️ ${boss.name}(重置)` : `${boss.name}(重置)`)
+                  : boss.name;
+
+                const cellTitle = isCrossDifficultyReset
+                  ? `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)\n🎟️ 此次數來自重置券：${sourceBossLabel} → ${boss.name}`
+                  : `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)`;
 
                 bossCellEntries.push({
                   isCompleted,
                   html: `
-                  <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'}"
+                  <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'} ${isCrossDifficultyReset ? 'cross-diff-reset' : ''}"
                       data-record-key="${recordKey}"
                       onclick="toggleBossStatus('${recordKey}')"
                       oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
-                      title="隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)">
+                      title="${cellTitle}">
                     <div class="boss-name">${bossDisplayName}</div>
                     <div class="party-members">${displayTeamText}</div>
                   </div>
@@ -1209,11 +1302,13 @@
       const allChars = getAllCharacters();
       
       allChars.forEach(c => {
-        const hasBoss = c.bossIds && c.bossIds.includes(editingBossId);
-        if (!hasBoss) return;
-
+        const hasNormal = c.bossIds && c.bossIds.includes(editingBossId);
         const hasReset = c.resetBossIds && c.resetBossIds.includes(editingBossId);
-        const availableEntries = hasReset ? [1, 2] : [1];
+        if (!hasNormal && !hasReset) return;
+
+        const availableEntries = [];
+        if (hasNormal) availableEntries.push(1);
+        if (hasReset) availableEntries.push(2);
 
         availableEntries.forEach(entryIdx => {
           const targetKey = `${c.id}_${entryIdx}`;
@@ -1525,27 +1620,49 @@
       const hintColor = isFallback ? "#b45309" : "#64748b";
       modalBody.innerHTML += `<div style="font-size:12px; color:${hintColor}; margin-bottom:8px;">${hintText}</div>`;
 
-      targetChars.forEach(c => {
-        const availableResetBosses = resetableBosses.filter(b => c.bossIds && c.bossIds.includes(b.id));
+      let columnsHtml = `<div class="reset-char-columns">`;
 
-        let charSection = `<div><strong>${c.name} (${c.playerName})</strong><br>`;
-        
+      targetChars.forEach(c => {
+        // 找出這個角色本來排定的所有難度，各自屬於哪個 BOSS 群組（例如 kalos_hard -> "kalos"）
+        const ownGroupKeys = new Set((c.bossIds || []).map(bId => getBossGroupKey(bId)));
+
+        // 收集這些群組底下，所有支援重置券的難度 —— 不限於角色本來排定的那一個，這樣才能選群組內的其他難度當重置目標
+        const availableResetBosses = resetableBosses.filter(b => ownGroupKeys.has(getBossGroupKey(b.id)));
+
+        columnsHtml += `<div class="reset-char-column"><div class="reset-char-column-header"><strong style="font-size:13px;">${c.name} (${c.playerName})</strong></div>`;
+
         if (availableResetBosses.length === 0) {
-          charSection += `<span style="font-size:12px; color:#94a3b8;">（該角色的 BOSS 清單中沒有支援重置券的項目）</span>`;
+          columnsHtml += `<span style="font-size:12px; color:#94a3b8;">（該角色排定的 BOSS 群組中沒有支援重置券的難度）</span>`;
         } else {
+          // 依群組分行顯示，同一隻 BOSS 的所有難度放在同一行
+          const groupedMap = new Map();
           availableResetBosses.forEach(b => {
-            const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
-            charSection += `
-              <label style="font-size:13px; margin-right:10px; cursor:pointer;">
-                <input type="checkbox" onchange="toggleResetConfig('${c.id}', '${b.id}')" ${isChecked ? 'checked' : ''}>
-                ${b.name}
-              </label>`;
+            const key = getBossGroupKey(b.id);
+            if (!groupedMap.has(key)) groupedMap.set(key, []);
+            groupedMap.get(key).push(b);
+          });
+
+          groupedMap.forEach(bossesInGroup => {
+            columnsHtml += `<div style="margin: 4px 0 6px 0;">`;
+            bossesInGroup.forEach(b => {
+              const isChecked = c.resetBossIds && c.resetBossIds.includes(b.id);
+              const isOwnDifficulty = c.bossIds && c.bossIds.includes(b.id);
+              const crossTag = isOwnDifficulty ? '' : ' <span style="font-size:10px; color:#d97706;" title="這個難度不在角色本來排定的清單裡，勾選代表把重置券拿來跳打這個難度">🎟️跳難度</span>';
+              columnsHtml += `
+                <label style="font-size:13px; cursor:pointer; display:flex; align-items:center; gap:2px;">
+                  <input type="checkbox" onchange="toggleResetConfig('${c.id}', '${b.id}')" ${isChecked ? 'checked' : ''}>
+                  ${b.name}${crossTag}
+                </label>`;
+            });
+            columnsHtml += `</div>`;
           });
         }
 
-        charSection += `</div><hr style="border:0; border-top:1px #eee solid; margin:6px 0;">`;
-        modalBody.innerHTML += charSection;
+        columnsHtml += `</div>`;
       });
+
+      columnsHtml += `</div>`;
+      modalBody.innerHTML += columnsHtml;
     }
 
     document.getElementById("resetModal").style.display = "flex";
@@ -2134,7 +2251,7 @@
 
   <!-- 重置券設定彈窗 -->
   <div id="resetModal" class="modal" onclick="handleOverlayClick(event, closeResetConfigModal)">
-    <div class="modal-content">
+    <div class="modal-content reset-modal-content">
       <h3>設定角色的重置券 BOSS</h3>
       <div id="modalBody"></div>
       <br>
@@ -2217,6 +2334,28 @@
       </div>
     </div>
   </div>
+
+  <script>
+    // 背景頁面捲動鎖定：只要任何 .modal 被打開（display 不是 none），就鎖住 <body> 的捲動，
+    // 避免 modal 內部捲到底時，捲動事件「溢出」去捲動背景的大畫面
+    (function setupModalScrollLock() {
+      function isAnyModalOpen() {
+        return Array.from(document.querySelectorAll(".modal")).some(m => {
+          const displayValue = m.style.display || getComputedStyle(m).display;
+          return displayValue && displayValue !== "none";
+        });
+      }
+
+      function updateBodyScrollLock() {
+        document.body.classList.toggle("modal-open-lock", isAnyModalOpen());
+      }
+
+      const observer = new MutationObserver(updateBodyScrollLock);
+      observer.observe(document.body, { attributes: true, attributeFilter: ["style"], subtree: true });
+
+      updateBodyScrollLock();
+    })();
+  </script>
 
 </body>
 </html>
