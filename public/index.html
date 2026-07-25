@@ -964,17 +964,19 @@
                 }
 
                 const bossDisplayName = entry === 2
-                  ? (isCrossDifficultyReset ? `🎟️ ${boss.name}(重置)` : `${boss.name}(重置)`)
+                  ? `🎟️ ${boss.name}(重置)`
                   : boss.name;
 
                 const cellTitle = isCrossDifficultyReset
                   ? `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)\n🎟️ 此次數來自重置券：${sourceBossLabel} → ${boss.name}`
-                  : `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)`;
+                  : (entry === 2
+                    ? `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)\n🎟️ 此次數來自重置券：${boss.name}(同難度)`
+                    : `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)`);
 
                 bossCellEntries.push({
                   isCompleted,
                   html: `
-                  <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'} ${isCrossDifficultyReset ? 'cross-diff-reset' : ''}"
+                  <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'} ${entry === 2 ? 'cross-diff-reset' : ''}"
                       data-record-key="${recordKey}"
                       onclick="toggleBossStatus('${recordKey}')"
                       oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
