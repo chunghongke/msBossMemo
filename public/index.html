@@ -292,10 +292,19 @@
       align-items: center;
       cursor: pointer;
       user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
       transition: all 0.15s ease-in-out;
       min-height: 58px;
       box-sizing: border-box;
       text-align: center;
+    }
+
+    .boss-cell.long-press-active {
+      transform: scale(0.96);
+      opacity: 0.75;
     }
 
     .boss-name {
@@ -980,6 +989,10 @@
                       data-record-key="${recordKey}"
                       onclick="toggleBossStatus('${recordKey}')"
                       oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
+                      ontouchstart="handleCellTouchStart(event, '${c.id}', '${boss.id}', ${entry})"
+                      ontouchmove="handleCellTouchMove(event)"
+                      ontouchend="handleCellTouchEnd(event)"
+                      ontouchcancel="handleCellTouchEnd(event)"
                       title="${cellTitle}">
                     <div class="boss-name">${bossDisplayName}</div>
                     <div class="party-members">${displayTeamText}</div>
@@ -1440,6 +1453,51 @@
       renderApp();
     }
   };
+
+  // ==========================================
+  // 手機長按 (Long Press) 模擬右鍵 —— 開啟組隊編輯 modal
+  // ==========================================
+  let longPressTimer = null;
+  let longPressFired = false;
+  let longPressStartPos = null;
+  let longPressCellEl = null;
+  const LONG_PRESS_DURATION = 500; // ms
+  const LONG_PRESS_MOVE_TOLERANCE = 10; // px
+
+  function handleCellTouchStart(event, charId, bossId, entryIndex) {
+    if (event.touches.length !== 1) return;
+    longPressFired = false;
+    longPressStartPos = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+    longPressCellEl = event.currentTarget;
+
+    clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+      longPressFired = true;
+      if (longPressCellEl) longPressCellEl.classList.add('long-press-active');
+      if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(15);
+      openPartyModal(event, charId, bossId, entryIndex);
+    }, LONG_PRESS_DURATION);
+  }
+
+  function handleCellTouchMove(event) {
+    if (!longPressStartPos || event.touches.length !== 1) return;
+    const dx = Math.abs(event.touches[0].clientX - longPressStartPos.x);
+    const dy = Math.abs(event.touches[0].clientY - longPressStartPos.y);
+    if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
+      clearTimeout(longPressTimer);
+    }
+  }
+
+  function handleCellTouchEnd(event) {
+    clearTimeout(longPressTimer);
+    if (longPressCellEl) longPressCellEl.classList.remove('long-press-active');
+    if (longPressFired) {
+      // 長按已經開啟過 modal，阻止接下來的 click 事件觸發 toggleBossStatus
+      event.preventDefault();
+    }
+    longPressCellEl = null;
+    longPressStartPos = null;
+  }
 
   function openPartyModal(event, charId, bossId, entryIndex) {
     event.preventDefault();
