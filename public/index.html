@@ -2187,6 +2187,7 @@
           draggedType = "character";
           charCard.classList.add("dragging");
           e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", "character-card"); // 部分瀏覽器(如Firefox)要求dragstart時要有資料，否則drop事件可能收不到
           return;
         }
 
@@ -2197,12 +2198,19 @@
         draggedType = "player";
         playerCard.classList.add("dragging");
         e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", "player-card");
       });
 
       container.addEventListener("dragend", () => {
         if (draggedCard) draggedCard.classList.remove("dragging");
         draggedCard = null;
         draggedType = null;
+      });
+
+      // dragenter 也要 preventDefault，只擋 dragover 在部分瀏覽器(尤其本機 file:// 環境)不夠穩定，
+      // 沒擋住的話瀏覽器可能會判定為不可放置，改成執行「開啟檔案/連結」的預設行為，導致畫面卡住
+      container.addEventListener("dragenter", (e) => {
+        e.preventDefault();
       });
 
       container.addEventListener("dragover", (e) => {
@@ -2235,27 +2243,43 @@
         e.preventDefault();
 
         if (draggedType === "character" && draggedCard) {
-          const playerName = draggedCard.dataset.playerName;
-          const parentContainer = draggedCard.parentElement;
-          const newOrder = Array.from(parentContainer.querySelectorAll(".character-card"))
-            .map(card => card.dataset.charId)
-            .filter(Boolean);
-          saveCharacterOrder(playerName, newOrder);
+          persistCharacterOrder(draggedCard);
           return;
         }
 
         if (draggedType === "player") {
-          // 依據當前 DOM 順序儲存玩家名稱清單
-          const cards = container.querySelectorAll(".player-card");
-          const newOrder = Array.from(cards)
-            .map(card => card.dataset.playerName)
-            .filter(Boolean);
-
-          savePlayerOrder(newOrder);
+          persistPlayerOrder();
         }
       });
 
+      // 依目前 DOM 順序儲存「角色卡」排序 (同一位玩家底下)
+      function persistCharacterOrder(cardEl) {
+        const playerName = cardEl.dataset.playerName;
+        const parentContainer = cardEl.parentElement;
+        const newOrder = Array.from(parentContainer.querySelectorAll(".character-card"))
+          .map(card => card.dataset.charId)
+          .filter(Boolean);
+        saveCharacterOrder(playerName, newOrder);
+      }
+
+      // 依目前 DOM 順序儲存「玩家卡」排序
+      function persistPlayerOrder() {
+        const cards = container.querySelectorAll(".player-card");
+        const newOrder = Array.from(cards)
+          .map(card => card.dataset.playerName)
+          .filter(Boolean);
+        savePlayerOrder(newOrder);
+      }
+
       container.dataset.dragInited = "true"; // 避免重複繫結
+
+      // 保險機制：擋掉整個視窗的預設拖放行為，避免手滑拖出容器範圍外時
+      // 瀏覽器觸發「開啟檔案/連結」的預設動作（本機 file:// 環境下特別容易導致頁面卡住）
+      if (!window.__dragDropWindowGuardInited) {
+        window.addEventListener("dragover", (e) => e.preventDefault());
+        window.addEventListener("drop", (e) => e.preventDefault());
+        window.__dragDropWindowGuardInited = true;
+      }
     }
 
     // 計算距離每週四 00:00 的倒數計時 (精確至分鐘，格式為天 時 分)
