@@ -878,6 +878,61 @@
     return count;
   }
 
+  // 把原始結晶錢數值格式化成「萬」，保留一位小數（例：3333333 -> "333.3萬"）
+  // 把原始結晶錢數值格式化成「億萬」，超過 1 億會拆成 X億Y.Y萬，沒到 1 億就只顯示 Y.Y萬
+  function formatCrystal(rawValue) {
+    const manValue = rawValue / 10000; // 換算成「萬」為單位
+    const yi = Math.floor(manValue / 10000);
+    const remainderMan = manValue - yi * 10000;
+
+    if (yi > 0) {
+      return `${yi}億${remainderMan.toFixed(1)}萬`;
+    }
+    return `${manValue.toFixed(1)}萬`;
+  }
+
+  // 計算角色本週的結晶錢：已收入（只算完成的）、預計收入（不管完成與否，全部排定的都算）
+  // 邏輯跟角色卡片實際渲染 boss-cell 的判斷條件完全一致，確保數字跟畫面上顯示的格子永遠對得上
+  function calculateCharacterCrystal(c) {
+    let earned = 0;
+    let expected = 0;
+
+    window.config.bosses.forEach(boss => {
+      if (!boss.crystalValue) return;
+
+      const inBossIds = !c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(boss.id);
+      const inResetBossIds = c.resetBossIds && c.resetBossIds.includes(boss.id);
+      if (!inBossIds && !inResetBossIds) return;
+
+      const maxEntries = boss.allowReset ? 2 : 1;
+
+      for (let entry = 1; entry <= maxEntries; entry++) {
+        if (entry === 1 && !inBossIds) continue;
+        if (entry === 2 && !inResetBossIds) continue;
+
+        const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+        const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
+        const team = record && window.store.teams ? window.store.teams[record.teamId] : null;
+        if (!record || !team) continue;
+
+        const rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: entry }));
+        // Guest 也算一份，均分人數用實際還存在的隊員數（跟畫面上「隊伍成員」顯示邏輯一致）
+        const validMembers = rawMembers.filter(m => {
+          if (!m.charId.startsWith("guest_")) return true;
+          return window.store.guests && window.store.guests.some(g => g.id === m.charId);
+        });
+
+        const teamSize = validMembers.length > 0 ? validMembers.length : 1;
+        const share = boss.crystalValue / teamSize;
+
+        expected += share;
+        if (record.isCompleted) earned += share;
+      }
+    });
+
+    return { earned, expected };
+  }
+
   // 記錄目前每個 boss-cell 的畫面位置（key 為 recordKey），供重繪後做滑動動畫比對用
   function captureBossCellPositions(container) {
     const positions = new Map();
@@ -957,19 +1012,6 @@
       const isPrimary = p.name === primaryUser;
       const isCollapsed = collapsedKeys.includes(p.name);
 
-      let playerHTML = `
-        <div class="player-card ${isPrimary ? 'primary-player' : ''} ${isCollapsed ? 'is-collapsed' : ''}" 
-            id="player-card-${playerId}" 
-            draggable="true" 
-            data-player-name="${p.name}"
-            data-collapse-key="${p.name}">
-          <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
-            <span>👤 玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}</span>
-            <span class="collapse-icon" id="collapse-icon-${playerId}">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
-          </div>
-          <div class="player-characters">
-      `;
-
       // 💡 關鍵修復：Firebase 取回的空陣列會變成 undefined，在此加上空值保護
       const rawCharacters = p.characters || [];
 
@@ -984,6 +1026,32 @@
         return 0;
       });
 
+      // 先算出每個角色的結晶錢，順便加總成這個玩家的總計（header 要用到，所以要在 header 組出來之前先算）
+      const crystalByCharId = new Map();
+      let playerEarnedTotal = 0;
+      let playerExpectedTotal = 0;
+      characters.forEach(c => {
+        const crystal = calculateCharacterCrystal(c);
+        crystalByCharId.set(c.id, crystal);
+        playerEarnedTotal += crystal.earned;
+        playerExpectedTotal += crystal.expected;
+      });
+
+      let playerHTML = `
+        <div class="player-card ${isPrimary ? 'primary-player' : ''} ${isCollapsed ? 'is-collapsed' : ''}" 
+            id="player-card-${playerId}" 
+            draggable="true" 
+            data-player-name="${p.name}"
+            data-collapse-key="${p.name}">
+          <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
+            <span>👤 玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}
+              ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px;">💎 ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
+            </span>
+            <span class="collapse-icon" id="collapse-icon-${playerId}">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
+          </div>
+          <div class="player-characters">
+      `;
+
       if (characters.length === 0) {
         playerHTML += `
           <div style="padding: 10px 20px; color: #94a3b8; font-size: 13px; font-style: italic;">
@@ -996,6 +1064,7 @@
           const isFull = count >= 12;
           let selectedBossCount = c.bossIds ? c.bossIds.length : 0;
           selectedBossCount += c.resetBossIds ? c.resetBossIds.length : 0;
+          const charCrystal = crystalByCharId.get(c.id) || { earned: 0, expected: 0 };
 
           playerHTML += `
             <div class="character-card" draggable="true" data-char-id="${c.id}" data-player-name="${p.name}">
@@ -1018,6 +1087,7 @@
                           onmouseout="this.style.background='transparent'">
                     🖊️
                   </button>
+                  ${charCrystal.expected > 0 ? `<span style="font-size:11px; color:#eab308; font-weight:normal;">💎 ${formatCrystal(charCrystal.earned)} / ${formatCrystal(charCrystal.expected)}</span>` : ''}
                 </div>
                 <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / ${selectedBossCount}</span>
               </div>
