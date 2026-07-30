@@ -2295,7 +2295,9 @@
     const grid = document.getElementById("avatarEmojiGrid");
     if (!grid) return;
 
-    grid.innerHTML = DEFAULT_AVATAR_EMOJIS
+    const allEmojis = [...DEFAULT_AVATAR_EMOJIS, ...getCustomAvatarEmojis()];
+
+    grid.innerHTML = allEmojis
       .map(emoji => `<button type="button" class="avatar-emoji-option" onclick="selectAvatarEmoji('${emoji}')">${emoji}</button>`)
       .join("");
   }
@@ -2309,6 +2311,7 @@
     const input = document.getElementById("avatarEmojiInput");
     input.value = (player && player.avatarEmoji) || "";
     document.getElementById("avatarEmojiError").innerText = "";
+    document.getElementById("avatarSaveAsDefaultCheckbox").checked = false;
     document.getElementById("avatarSaveBtn").disabled = !isSingleEmoji(input.value);
     document.getElementById("avatarPickerModal").style.display = "flex";
   }
@@ -2349,6 +2352,7 @@
     const input = document.getElementById("avatarEmojiInput");
     input.value = "";
     document.getElementById("avatarEmojiError").innerText = "";
+    document.getElementById("avatarSaveAsDefaultCheckbox").checked = false;
     document.getElementById("avatarSaveBtn").disabled = false;
   }
 
@@ -2363,6 +2367,11 @@
 
     if (value) {
       player.avatarEmoji = value;
+
+      const saveAsDefault = document.getElementById("avatarSaveAsDefaultCheckbox").checked;
+      if (saveAsDefault) {
+        addCustomAvatarEmoji(value);
+      }
     } else {
       delete player.avatarEmoji;
     }
@@ -2477,6 +2486,20 @@
     // 儲存玩家排序至 LocalStorage
     function savePlayerOrder(orderArray) {
       localStorage.setItem("player_custom_order", JSON.stringify(orderArray));
+    }
+
+    // 取得使用者自己存下來的常用 emoji（額外加進頭像面板的預設清單）
+    function getCustomAvatarEmojis() {
+      const saved = localStorage.getItem("custom_avatar_emojis");
+      return saved ? JSON.parse(saved) : [];
+    }
+
+    // 把一個新的 emoji 加進使用者自訂的常用清單（去重複，不會塞進已經有的）
+    function addCustomAvatarEmoji(emoji) {
+      const custom = getCustomAvatarEmojis();
+      if (DEFAULT_AVATAR_EMOJIS.includes(emoji) || custom.includes(emoji)) return;
+      custom.push(emoji);
+      localStorage.setItem("custom_avatar_emojis", JSON.stringify(custom));
     }
 
     // 取得指定玩家底下的角色自訂排序
@@ -2789,6 +2812,10 @@
                oninput="validateAvatarInput()"
                style="width: 100%; box-sizing: border-box; padding: 8px; font-size: 22px; text-align: center; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);">
         <div id="avatarEmojiError" style="font-size: 12px; color: #ef4444; margin-top: 4px; min-height: 16px; text-align: left;"></div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-top:6px; cursor:pointer;">
+          <input type="checkbox" id="avatarSaveAsDefaultCheckbox">
+          儲存為常用面板的預設選項（下次也會出現在上面的面板裡）
+        </label>
       </div>
       <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 16px;">
         <button class="btn btn-secondary" onclick="useDefaultAvatarEmoji()">↩️ 恢復預設</button>
