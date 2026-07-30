@@ -133,8 +133,6 @@
       transition: background 0.2s;
     }
     .btn:hover { background-color: #0369a1; }
-    .btn-reset { background-color: #ef4444; }
-    .btn-reset:hover { background-color: #dc2626; }
     .btn-secondary { background-color: #64748b; }
     .btn-secondary:hover { background-color: #475569; }
 
@@ -467,10 +465,6 @@
       max-height: 340px;
       overflow-y: auto;
       padding-right: 4px;
-    }
-
-    .party-column,
-    .reset-char-column {
       overscroll-behavior: contain;
     }
 
@@ -505,6 +499,7 @@
       padding: 0 12px 10px 12px;
       max-height: 260px;
       overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .reset-char-column-header {
@@ -572,7 +567,6 @@
 
       .controls .btn,
       .controls .btn-secondary,
-      .controls .btn-reset,
       .controls .theme-toggle-btn {
         width: 100%;
         box-sizing: border-box;
@@ -1390,34 +1384,6 @@
 
     saveStoreToCloud();
   }
-
-  function resetWeeklyStatus() {
-      const primaryUser = getPrimaryUser();
-
-      if (!primaryUser) {
-        alert("請先在上方選單選擇「排在最上方」的主要玩家！");
-        return;
-      }
-
-      const primaryPlayerObj = window.config.players.find(p => p.name === primaryUser);
-      if (!primaryPlayerObj || !primaryPlayerObj.characters || primaryPlayerObj.characters.length === 0) {
-        alert(`主要玩家 [${primaryUser}] 之下沒有任何角色！`);
-        return;
-      }
-
-      const primaryCharIds = new Set(primaryPlayerObj.characters.map(c => c.id));
-
-      if (confirm(`確定要重置主要玩家 [${primaryUser}] 本週所有角色的 BOSS 攻略狀態嗎？\n(其他玩家進度與組隊資訊將完整保留)`)) {
-        if (window.store && window.store.weeklyRecords) {
-          Object.values(window.store.weeklyRecords).forEach(record => {
-            if (record && primaryCharIds.has(record.charId)) {
-              record.isCompleted = false;
-            }
-          });
-        }
-        saveStoreToCloud();
-      }
-    }
 
   // ==================== Modal 與操控邏輯 (重點重構區) ====================
   let editingCharId = null;
@@ -2562,7 +2528,6 @@
       <button class="btn btn-secondary" onclick="toggleAllPlayers(true)">📁 全部收合</button>
       <button class="btn btn-secondary" onclick="toggleAllPlayers(false)">📂 全部展開</button>
       <button class="btn" onclick="openResetConfigModal()">🎟️ 設定重置券</button>
-      <button class="btn btn-reset" onclick="resetWeeklyStatus()">🔄 每週進度重置</button>
       <button class="theme-toggle-btn" onclick="toggleTheme()">
         <span id="themeIcon">🌙</span> <span id="themeText">深色模式</span>
       </button>
