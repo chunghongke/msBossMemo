@@ -187,6 +187,39 @@
       color: #38bdf8;
     }
 
+    .player-avatar-btn {
+      display: inline-block;
+      cursor: pointer;
+      border-radius: 6px;
+      padding: 0 2px;
+      transition: background-color 0.15s;
+    }
+
+    .player-avatar-btn:hover {
+      background: var(--bg-not-completed);
+    }
+
+    .avatar-emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .avatar-emoji-option {
+      font-size: 22px;
+      padding: 6px 0;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--card-bg);
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+
+    .avatar-emoji-option:hover {
+      background: var(--bg-not-completed);
+    }
+
     .player-characters {
       display: flex;
       flex-direction: column;
@@ -1077,7 +1110,9 @@
             data-player-name="${p.name}"
             data-collapse-key="${p.name}">
           <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
-            <span>👤 玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}
+            <span>
+              <span class="player-avatar-btn" onclick="event.stopPropagation(); openAvatarPickerModal('${p.name.replace(/'/g, "\\'")}')" title="點擊更換頭像">${p.avatarEmoji || '👤'}</span>
+              玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}
               ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px;">💎 ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
             </span>
             <span class="collapse-icon" id="collapse-icon-${playerId}">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
@@ -2022,7 +2057,8 @@
       window.config.players.forEach(p => {
         if (p && p.name) {
           const isSelected = p.name === currentPrimary ? 'selected' : '';
-          select.innerHTML += `<option value="${p.name}" ${isSelected}>👤 ${p.name}</option>`;
+          const avatar = p.avatarEmoji || '👤';
+          select.innerHTML += `<option value="${p.name}" ${isSelected}>${avatar} ${p.name}</option>`;
         }
       });
     }
@@ -2227,6 +2263,119 @@
 
   function closeAddPlayerModal() {
     document.getElementById("addPlayerModal").style.display = "none";
+  }
+
+  // 檢查輸入的字串是不是「剛好一個」表情符號
+  function isSingleEmoji(str) {
+    const trimmed = (str || "").trim();
+    if (!trimmed) return false;
+
+    // 先用 Unicode 分類粗篩：整段字串只能由 emoji 相關的碼位組成
+    // （Extended_Pictographic 涵蓋大部分圖像 emoji，加上組合用的 ZWJ、變化選擇符、膚色修飾符、性別符號）
+    const emojiCharPattern = /^(\p{Extended_Pictographic}|\p{Emoji_Presentation}|[\u200D\uFE0F\u{1F3FB}-\u{1F3FF}\u2640\u2642])+$/u;
+    if (!emojiCharPattern.test(trimmed)) return false;
+
+    // 再確認視覺上「剛好是一個」字元（grapheme），排除貼了好幾個 emoji 疊在一起的情況
+    if (typeof Intl !== "undefined" && Intl.Segmenter) {
+      const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+      return Array.from(segmenter.segment(trimmed)).length === 1;
+    }
+
+    // 舊瀏覽器沒有 Intl.Segmenter，退一步只靠上面的 Unicode 分類檢查
+    return true;
+  }
+
+  // 頭像面板的預設常用 emoji 清單，改這個陣列就能增減面板選項，不用手動改 HTML
+  const DEFAULT_AVATAR_EMOJIS = [
+    '⚔️', '🛡️', '🏹', '🔮', '👑', '🧙', '🧙‍♀️', '🥷', '🐉', '🦄',
+    '🐱', '🦊', '🗡️', '🏆', '💎', '🔥', '⭐', '🌙', '🍀', '🎯', '🎮'
+  ];
+
+  function renderAvatarEmojiGrid() {
+    const grid = document.getElementById("avatarEmojiGrid");
+    if (!grid) return;
+
+    grid.innerHTML = DEFAULT_AVATAR_EMOJIS
+      .map(emoji => `<button type="button" class="avatar-emoji-option" onclick="selectAvatarEmoji('${emoji}')">${emoji}</button>`)
+      .join("");
+  }
+
+  let editingAvatarPlayerName = null;
+
+  function openAvatarPickerModal(playerName) {
+    editingAvatarPlayerName = playerName;
+    renderAvatarEmojiGrid();
+    const player = window.config.players.find(p => p.name === playerName);
+    const input = document.getElementById("avatarEmojiInput");
+    input.value = (player && player.avatarEmoji) || "";
+    document.getElementById("avatarEmojiError").innerText = "";
+    document.getElementById("avatarSaveBtn").disabled = !isSingleEmoji(input.value);
+    document.getElementById("avatarPickerModal").style.display = "flex";
+  }
+
+  function closeAvatarPickerModal() {
+    document.getElementById("avatarPickerModal").style.display = "none";
+    editingAvatarPlayerName = null;
+  }
+
+  function selectAvatarEmoji(emoji) {
+    const input = document.getElementById("avatarEmojiInput");
+    input.value = emoji;
+    validateAvatarInput();
+  }
+
+  function validateAvatarInput() {
+    const input = document.getElementById("avatarEmojiInput");
+    const errorEl = document.getElementById("avatarEmojiError");
+    const saveBtn = document.getElementById("avatarSaveBtn");
+    const value = input.value;
+
+    if (!value.trim()) {
+      errorEl.innerText = "";
+      saveBtn.disabled = true;
+      return;
+    }
+
+    if (isSingleEmoji(value)) {
+      errorEl.innerText = "";
+      saveBtn.disabled = false;
+    } else {
+      errorEl.innerText = "⚠️ 請輸入剛好一個表情符號（不能是文字或多個字元）";
+      saveBtn.disabled = true;
+    }
+  }
+
+  function useDefaultAvatarEmoji() {
+    const input = document.getElementById("avatarEmojiInput");
+    input.value = "";
+    document.getElementById("avatarEmojiError").innerText = "";
+    document.getElementById("avatarSaveBtn").disabled = false;
+  }
+
+  async function saveAvatarEmoji() {
+    const input = document.getElementById("avatarEmojiInput");
+    const value = input.value.trim();
+
+    if (value && !isSingleEmoji(value)) return;
+
+    const player = window.config.players.find(p => p.name === editingAvatarPlayerName);
+    if (!player) return;
+
+    if (value) {
+      player.avatarEmoji = value;
+    } else {
+      delete player.avatarEmoji;
+    }
+
+    try {
+      const playersRef = window.dbRef(window.db, '/players');
+      await window.dbSet(playersRef, window.config.players);
+      closeAvatarPickerModal();
+      renderApp();
+    } catch (error) {
+      console.error("寫入 Firebase 失敗：", error);
+      alert("儲存頭像失敗，請稍後再試！");
+    }
   }
 
   async function submitAddPlayer() {
@@ -2625,6 +2774,28 @@
       <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
         <button class="btn btn-secondary" onclick="closeAddPlayerModal()">取消</button>
         <button class="btn" onclick="submitAddPlayer()">確認新增</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 玩家頭像 Emoji 選擇彈窗 -->
+  <div id="avatarPickerModal" class="modal" onclick="handleOverlayClick(event, closeAvatarPickerModal)">
+    <div class="modal-content">
+      <h3 style="margin-top: 0;">選擇玩家頭像</h3>
+      <div class="avatar-emoji-grid" id="avatarEmojiGrid"></div>
+      <div style="margin-top: 14px;">
+        <label style="display:block; margin-bottom:5px; text-align:left; font-size:14px;">或自行輸入一個表情符號：</label>
+        <input type="text" id="avatarEmojiInput" maxlength="8" placeholder="輸入或貼上一個 emoji"
+               oninput="validateAvatarInput()"
+               style="width: 100%; box-sizing: border-box; padding: 8px; font-size: 22px; text-align: center; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);">
+        <div id="avatarEmojiError" style="font-size: 12px; color: #ef4444; margin-top: 4px; min-height: 16px; text-align: left;"></div>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 16px;">
+        <button class="btn btn-secondary" onclick="useDefaultAvatarEmoji()">↩️ 恢復預設</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary" onclick="closeAvatarPickerModal()">取消</button>
+          <button class="btn" id="avatarSaveBtn" onclick="saveAvatarEmoji()">儲存</button>
+        </div>
       </div>
     </div>
   </div>
