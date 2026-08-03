@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIP 升階花費計算機</title>
+<link rel="icon" href="/public/icon.png">
+<style>
+  :root {
+    --body-bg: #f8fafc;
+    --text-main: #334155;
+    --text-muted: #64748b;
+    --title-color: #1e293b;
+
+    --card-bg: #ffffff;
+    --border-color: #e2e8f0;
+    --border-darker: #cbd5e1;
+    --input-bg: #ffffff;
+
+    --result-bg: #f1f5f9;
+    --result-highlight-bg: #dcfce7;
+    --result-highlight-text: #15803d;
+
+    --shadow-md: rgba(0, 0, 0, 0.05);
+  }
+
+  html.dark-mode {
+    --body-bg: #0f172a;
+    --text-main: #cbd5e1;
+    --text-muted: #94a3b8;
+    --title-color: #f1f5f9;
+
+    --card-bg: #1e293b;
+    --border-color: #334155;
+    --border-darker: #475569;
+    --input-bg: #0f172a;
+
+    --result-bg: #334155;
+    --result-highlight-bg: #064e3b;
+    --result-highlight-text: #6ee7b7;
+
+    --shadow-md: rgba(0, 0, 0, 0.3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 20px;
+    background-color: var(--body-bg);
+    color: var(--text-main);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    background: var(--card-bg);
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px var(--shadow-md);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: var(--title-color);
+  }
+
+  .btn {
+    padding: 6px 12px;
+    background-color: #0284c7;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+  .btn:hover { background-color: #0369a1; }
+
+  .theme-toggle-btn {
+    background: var(--card-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    max-width: 1360px;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px var(--shadow-md);
+    flex: 1 1 360px;
+  }
+
+  .card h3 {
+    margin-top: 0;
+    color: var(--title-color);
+    font-size: 16px;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 10px;
+  }
+
+  .field {
+    margin-bottom: 14px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+
+  .field .hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .field input,
+  .field select {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-darker);
+    background: var(--input-bg);
+    color: var(--text-main);
+    font-size: 14px;
+  }
+
+  .field input:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .strategy-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .strategy-row .strategy-block {
+    flex: 1 1 250px;
+    margin-bottom: 0;
+  }
+
+  .strategy-block {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+  }
+
+  .strategy-block.best {
+    border-color: var(--result-highlight-text);
+  }
+
+  .strategy-block h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: var(--title-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .strategy-block .best-badge {
+    font-size: 11px;
+    font-weight: bold;
+    background: var(--result-highlight-bg);
+    color: var(--result-highlight-text);
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .vip-points-banner {
+    background: var(--result-bg);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .vip-points-banner .value {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--title-color);
+  }
+
+  .field .rate-input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .field .rate-input-group span {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .calc-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+    margin-top: 6px;
+  }
+
+  .result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .result-item {
+    background: var(--result-bg);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .result-item.highlight {
+    background: var(--result-highlight-bg);
+  }
+
+  .result-item .label {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .result-item.highlight .label {
+    color: var(--result-highlight-text);
+  }
+
+  .result-item .value {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--title-color);
+    white-space: nowrap;
+  }
+
+  .result-item.highlight .value {
+    color: var(--result-highlight-text);
+  }
+
+  .result-placeholder {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 30px 10px;
+  }
+
+  .formula-note {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border-color);
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .formula-note summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-main);
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+
+  @media (max-width: 640px) {
+    body { margin: 12px; }
+    .layout { flex-direction: column; }
+    .strategy-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>💰 VIP 升階花費計算機</h2>
+    <button class="theme-toggle-btn" onclick="toggleTheme()">
+      <span id="themeIcon">🌙</span> <span id="themeText">深色模式</span>
+    </button>
+  </div>
+
+  <div class="layout">
+    <div class="card">
+      <h3>📝 輸入參數</h3>
+
+      <div class="field">
+        <label for="vipTier">VIP 階級</label>
+        <select id="vipTier" onchange="onTierChange()">
+          <option value="gold">黃金（樂豆:VIP點數 = 1:30，門檻 7500）</option>
+          <option value="diamond">鑽石（樂豆:VIP點數 = 1:40，門檻 25000）</option>
+          <option value="royal">皇家（樂豆:VIP點數 = 1:50，門檻 100000）</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="ldNeeded">升階所需樂豆點（消費紀錄門檻，可手動修改）</label>
+        <input type="number" id="ldNeeded" value="7500" min="0">
+        <div class="hint">選階級後會自動帶入完整門檻，如果已經有部分進度，可以自己改成剩餘需要的數量</div>
+      </div>
+
+      <div class="field">
+        <label for="mesoMallRate">楓幣商城比值（? 楓點 : 1 億楓幣）</label>
+        <div class="rate-input-group">
+          <input type="number" id="mesoMallRate" value="4" min="0" step="0.01">
+          <span>楓點 : 1 億楓幣</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="sellRate">目前賣幣比值（1 台幣 : ? 萬楓幣）</label>
+        <div class="rate-input-group">
+          <input type="number" id="sellRate" value="2650" min="0" step="0.01">
+          <span>萬楓幣 : 1 台幣</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cardDiscount">折扣點數卡折數（儲值管道之一，例如 93 折請輸入 93）</label>
+        <input type="number" id="cardDiscount" value="93" min="0" max="100" step="0.1">
+        <div class="hint">用折扣價買點數卡儲值樂豆點，通常落在 92～95 折之間</div>
+      </div>
+
+      <div class="field">
+        <label>轉帳點數回饋（儲值管道之二，固定值）</label>
+        <input type="text" value="5% 額外點數回饋" disabled>
+        <div class="hint">用轉帳方式儲值可獲得固定 5% 額外樂豆點，此比例為遊戲固定規則不可調整</div>
+      </div>
+
+      <div class="field">
+        <label for="giftDiscount">送禮折數（消費方式之一，例如 82 折請輸入 82）</label>
+        <input type="number" id="giftDiscount" value="82" min="0" max="100" step="0.1">
+        <div class="hint">送禮只算 8 折進消費紀錄是遊戲固定規則；送出去的樂豆點回收，靠的是向對方收的送禮折數費用</div>
+      </div>
+
+      <button class="btn calc-btn" onclick="calculate()">🧮 計算</button>
+    </div>
+
+    <div class="card" style="flex: 2 1 620px;">
+      <h3>📊 計算結果</h3>
+      <div id="resultArea">
+        <div class="result-placeholder">填好左邊的參數，按「計算」查看結果</div>
+      </div>
+
+      <details class="formula-note">
+        <summary>這個計算機是怎麼算的？</summary>
+        儲值樂豆點的管道有兩種：<b>折扣點數卡</b>（花門檻樂豆點 × 點數卡折數的現金）跟<b>轉帳點數回饋</b>（花門檻樂豆點 ÷ 1.05 的現金，固定多拿 5% 點數）。<br><br>
+        湊到消費紀錄門檻的方式也有兩種，跟儲值管道無關，可以自由搭配：<br>
+        <b>直接消費</b>－買到的樂豆點 100% 算進消費紀錄，樂豆點還在自己手上，可以直接依楓幣商城比值、賣幣比值換算回現金。<br>
+        <b>送禮</b>－遊戲規則固定送禮只有 8 折算進消費紀錄，所以要送出去的樂豆點 = 門檻樂豆點 ÷ 0.8。這些樂豆點已經送給對方，自己沒辦法再換楓幣，只能靠送禮折數向對方收費回收 = 送出去的樂豆點 × 送禮折數。<br><br>
+        另外，VIP 點數 = 門檻樂豆點 × 階級比例，四種組合湊滿門檻拿到的 VIP 點數都一樣，可以再依 VIP點數 ÷ 300 = 楓點，換算楓幣、換算現金。<br><br>
+        「全部回收後」＝毛成本 － 該消費方式的現金回收（樂豆點換現金或送禮折數回收）－ VIP 點數換現金；「VIP 點數留著不賣」則不扣 VIP 點數這一項。系統會自動標出四種組合中「全部回收後」現金花費最低的（可能是負數，代表這個組合本身就有賺頭）。
+      </details>
+    </div>
+  </div>
+
+  <script>
+    const TIER_CONFIG = {
+      gold:    { ratio: 30, threshold: 7500,   name: "黃金" },
+      diamond: { ratio: 40, threshold: 25000,  name: "鑽石" },
+      royal:   { ratio: 50, threshold: 100000, name: "皇家" }
+    };
+
+    const GIFT_VIP_PROGRESS_DISCOUNT = 0.8; // 送禮只有 8 折算進消費紀錄（固定值，非使用者輸入）
+    const BANK_TRANSFER_BONUS = 0.05; // 轉帳固定回饋 5%（固定值，非使用者輸入）
+
+    function onTierChange() {
+      const tier = document.getElementById("vipTier").value;
+      document.getElementById("ldNeeded").value = TIER_CONFIG[tier].threshold;
+    }
+
+    function formatTwd(value) {
+      const rounded = Math.round(value);
+      return `${rounded.toLocaleString("zh-TW")} 元`;
+    }
+
+    function formatNumber(value) {
+      return Math.round(value).toLocaleString("zh-TW");
+    }
+
+    // 楓點換算成台幣：楓點 -> (依楓幣商城比值) 楓幣 -> (依賣幣比值) 台幣
+    function mpToTwd(mp, mesoMallRate, sellRate) {
+      if (!mesoMallRate || !sellRate) return 0;
+      const meso = (mp / mesoMallRate) * 100000000;
+      const twd = meso / (sellRate * 10000);
+      return twd;
+    }
+
+    function buildStrategyHtml(icon, name, grossCash, giftCashBack, ldCashBack, vipCashBack, isBest) {
+      const netWithoutVip = grossCash - giftCashBack - ldCashBack;
+      const netWithVip = netWithoutVip - vipCashBack;
+
+      const giftRow = giftCashBack > 0 ? `
+          <div class="result-item">
+            <span class="label">🎁 送禮折數回收現金</span>
+            <span class="value">${formatTwd(giftCashBack)}</span>
+          </div>` : "";
+
+      const ldRow = ldCashBack > 0 ? `
+          <div class="result-item">
+            <span class="label">🪙 樂豆點轉賣楓幣回收現金</span>
+            <span class="value">${formatTwd(ldCashBack)}</span>
+          </div>` : "";
+
+      return `
+        <div class="strategy-block${isBest ? " best" : ""}">
+          <h4>${icon} ${name}${isBest ? '<span class="best-badge">最省現金</span>' : ""}</h4>
+          <div class="result-list">
+            <div class="result-item">
+              <span class="label">💸 儲值花費（毛成本）</span>
+              <span class="value">${formatTwd(grossCash)}</span>
+            </div>
+            ${giftRow}
+            ${ldRow}
+            <div class="result-item">
+              <span class="label">💠 VIP 點數轉賣楓幣回收現金</span>
+              <span class="value">${formatTwd(vipCashBack)}</span>
+            </div>
+            <div class="result-item highlight">
+              <span class="label">✅ 全部回收後，實際花費現金</span>
+              <span class="value">${formatTwd(netWithVip)}</span>
+            </div>
+            <div class="result-item">
+              <span class="label">🔒 VIP 點數留著不賣，實際花費現金</span>
+              <span class="value">${formatTwd(netWithoutVip)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function calculate() {
+      const tier = document.getElementById("vipTier").value;
+      const ldNeeded = parseFloat(document.getElementById("ldNeeded").value);
+      const mesoMallRate = parseFloat(document.getElementById("mesoMallRate").value);
+      const sellRate = parseFloat(document.getElementById("sellRate").value);
+      const giftDiscountPercent = parseFloat(document.getElementById("giftDiscount").value);
+      const cardDiscountPercent = parseFloat(document.getElementById("cardDiscount").value);
+
+      const resultArea = document.getElementById("resultArea");
+
+      if ([ldNeeded, mesoMallRate, sellRate, giftDiscountPercent, cardDiscountPercent].some(v => isNaN(v) || v < 0)) {
+        resultArea.innerHTML = `<div class="result-placeholder">⚠️ 請確認每個欄位都填了有效的數字</div>`;
+        return;
+      }
+
+      const ratio = TIER_CONFIG[tier].ratio;
+      const giftDiscount = giftDiscountPercent / 100;
+      const cardDiscount = cardDiscountPercent / 100;
+
+      // VIP 點數只跟門檻樂豆點與階級比例有關，跟儲值管道、消費方式都無關
+      const vipPoints = ldNeeded * ratio;
+      const vipToMp = vipPoints / 300;
+      const vipCashBack = mpToTwd(vipToMp, mesoMallRate, sellRate);
+
+      // 消費方式一：直接消費（100% 算消費紀錄，樂豆點還在自己手上，可以換楓幣賣掉回收）
+      const ldQtyDirect = ldNeeded;
+      const ldCashBackDirect = mpToTwd(ldNeeded, mesoMallRate, sellRate);
+
+      // 消費方式二：送禮（只算 8 折進消費紀錄，要送出去的樂豆點要比門檻多；
+      // 送出去的樂豆點已經給了對方，自己沒辦法再拿去楓幣商城換楓幣，
+      // 只能靠送禮折數向對方收費回收一部分現金）
+      const ldQtyGift = ldNeeded / GIFT_VIP_PROGRESS_DISCOUNT;
+      const giftCashBack = ldQtyGift * giftDiscount;
+
+      // 儲值管道一：折扣點數卡
+      const costPerLdCard = cardDiscount;
+      // 儲值管道二：轉帳點數回饋（固定多拿 5%，等於每 1 樂豆點只要花 1/1.05 的現金）
+      const costPerLdTransfer = 1 / (1 + BANK_TRANSFER_BONUS);
+
+      // 四種組合：儲值管道 x 消費方式
+      const grossCardDirect = ldQtyDirect * costPerLdCard;
+      const grossCardGift = ldQtyGift * costPerLdCard;
+      const grossTransferDirect = ldQtyDirect * costPerLdTransfer;
+      const grossTransferGift = ldQtyGift * costPerLdTransfer;
+
+      const netCardDirectWithVip = grossCardDirect - ldCashBackDirect - vipCashBack;
+      const netCardGiftWithVip = grossCardGift - giftCashBack - vipCashBack;
+      const netTransferDirectWithVip = grossTransferDirect - ldCashBackDirect - vipCashBack;
+      const netTransferGiftWithVip = grossTransferGift - giftCashBack - vipCashBack;
+
+      const netCosts = {
+        cardDirect: netCardDirectWithVip,
+        cardGift: netCardGiftWithVip,
+        transferDirect: netTransferDirectWithVip,
+        transferGift: netTransferGiftWithVip
+      };
+      const cheapest = Object.keys(netCosts).reduce((a, b) => netCosts[a] <= netCosts[b] ? a : b);
+
+      resultArea.innerHTML = `
+        <div class="vip-points-banner">
+          <span>🎖️ 四種組合湊到門檻後，都可獲得的 VIP 點數</span>
+          <span class="value">${formatNumber(vipPoints)}</span>
+        </div>
+        <div class="strategy-row">
+          ${buildStrategyHtml("💳🛒", "折扣點數卡＋直接消費", grossCardDirect, 0, ldCashBackDirect, vipCashBack, cheapest === "cardDirect")}
+          ${buildStrategyHtml("💳🎁", "折扣點數卡＋送禮", grossCardGift, giftCashBack, 0, vipCashBack, cheapest === "cardGift")}
+          ${buildStrategyHtml("🏦🛒", "轉帳點數回饋＋直接消費", grossTransferDirect, 0, ldCashBackDirect, vipCashBack, cheapest === "transferDirect")}
+          ${buildStrategyHtml("🏦🎁", "轉帳點數回饋＋送禮", grossTransferGift, giftCashBack, 0, vipCashBack, cheapest === "transferGift")}
+        </div>
+      `;
+    }
+
+    // ---- 深色模式（跟主頁一致的邏輯） ----
+    (function applyThemeImmediately() {
+      const savedTheme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add("dark-mode");
+      } else {
+        document.documentElement.classList.remove("dark-mode");
+      }
+    })();
+
+    function updateThemeButton(isDark) {
+      const iconEl = document.getElementById("themeIcon");
+      const textEl = document.getElementById("themeText");
+      if (iconEl && textEl) {
+        iconEl.innerText = isDark ? "☀️" : "🌙";
+        textEl.innerText = isDark ? "淺色模式" : "深色模式";
+      }
+    }
+
+    window.toggleTheme = function() {
+      const isDark = document.documentElement.classList.toggle("dark-mode");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+      updateThemeButton(isDark);
+    };
+
+    document.addEventListener("DOMContentLoaded", function() {
+      updateThemeButton(document.documentElement.classList.contains("dark-mode"));
+    });
+  </script>
+
+</body>
+</html>
