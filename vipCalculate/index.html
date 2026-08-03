@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VIP 升階花費計算機</title>
-<link rel="icon" href="/public/icon.png">
+<link rel="icon" href="../public/icon.png">
 <style>
   :root {
     --body-bg: #f8fafc;
@@ -97,6 +97,26 @@
     align-items: center;
     gap: 4px;
   }
+
+  .header-links {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav-link {
+    background: var(--card-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .nav-link:hover { border-color: var(--border-darker); }
 
   .layout {
     display: flex;
@@ -308,7 +328,10 @@
 <body>
 
   <div class="header">
-    <h2>💰 VIP 升階花費計算機</h2>
+    <div class="header-links">
+      <h2>💰 VIP 升階花費計算機</h2>
+      <a class="nav-link" href="../public/index.html">📋 BOSS 備忘錄</a>
+    </div>
     <button class="theme-toggle-btn" onclick="toggleTheme()">
       <span id="themeIcon">🌙</span> <span id="themeText">深色模式</span>
     </button>
@@ -362,9 +385,15 @@
       </div>
 
       <div class="field">
-        <label for="giftDiscount">送禮折數（消費方式之一，例如 82 折請輸入 82）</label>
+        <label for="giftDiscount">送禮折數（消費方式之一，例如 82 折請輸入 82、8 折請輸入 80）</label>
         <input type="number" id="giftDiscount" value="82" min="0" max="100" step="0.1">
         <div class="hint">送禮只算 8 折進消費紀錄是遊戲固定規則；送出去的樂豆點回收，靠的是向對方收的送禮折數費用</div>
+      </div>
+
+      <div class="field">
+        <label for="daichouDiscount">代抽回收折數（消費方式之二，例如 82 折請輸入 82、8 折請輸入 80）</label>
+        <input type="number" id="daichouDiscount" value="82" min="0" max="100" step="0.1">
+        <div class="hint">帳號內直接消費買抽獎商品，100% 算消費紀錄；回收則是把抽到的商品轉讓給委託人，收代抽折數的費用</div>
       </div>
 
       <button class="btn calc-btn" onclick="calculate()">🧮 計算</button>
@@ -379,11 +408,12 @@
       <details class="formula-note">
         <summary>這個計算機是怎麼算的？</summary>
         儲值樂豆點的管道有兩種：<b>折扣點數卡</b>（花門檻樂豆點 × 點數卡折數的現金）跟<b>轉帳點數回饋</b>（花門檻樂豆點 ÷ 1.05 的現金，固定多拿 5% 點數）。<br><br>
-        湊到消費紀錄門檻的方式也有兩種，跟儲值管道無關，可以自由搭配：<br>
-        <b>直接消費</b>－買到的樂豆點 100% 算進消費紀錄，樂豆點還在自己手上，可以直接依楓幣商城比值、賣幣比值換算回現金。<br>
-        <b>送禮</b>－遊戲規則固定送禮只有 8 折算進消費紀錄，所以要送出去的樂豆點 = 門檻樂豆點 ÷ 0.8。這些樂豆點已經送給對方，自己沒辦法再換楓幣，只能靠送禮折數向對方收費回收 = 送出去的樂豆點 × 送禮折數。<br><br>
-        另外，VIP 點數 = 門檻樂豆點 × 階級比例，四種組合湊滿門檻拿到的 VIP 點數都一樣，可以再依 VIP點數 ÷ 300 = 楓點，換算楓幣、換算現金。<br><br>
-        「全部回收後」＝毛成本 － 該消費方式的現金回收（樂豆點換現金或送禮折數回收）－ VIP 點數換現金；「VIP 點數留著不賣」則不扣 VIP 點數這一項。系統會自動標出四種組合中「全部回收後」現金花費最低的（可能是負數，代表這個組合本身就有賺頭）。
+        湊到消費紀錄門檻的方式有三種，跟儲值管道無關，可以自由搭配：<br>
+        <b>直接消費換楓幣賣</b>－買到的樂豆點 100% 算進消費紀錄，樂豆點還在自己手上，可以直接依楓幣商城比值、賣幣比值換算回現金。<br>
+        <b>送禮</b>－遊戲規則固定送禮只有 8 折算進消費紀錄，所以要送出去的樂豆點 = 門檻樂豆點 ÷ 0.8。這些樂豆點已經送給對方，自己沒辦法再換楓幣，只能靠送禮折數向對方收費回收 = 送出去的樂豆點 × 送禮折數。<br>
+        <b>代抽</b>－帳號內直接消費買抽獎商品，100% 算進消費紀錄（花費樂豆點 = 門檻樂豆點，不用像送禮多買），回收則是把抽到的商品折現交給委託人 = 門檻樂豆點 × 代抽折數。<br><br>
+        另外，VIP 點數 = 門檻樂豆點 × 階級比例（1 樂豆:階級比例點），六種組合湊滿門檻拿到的 VIP 點數都一樣，可以再依 VIP點數 ÷ 300 = 楓點，換算楓幣、換算現金。<br><br>
+        「全部回收後」＝毛成本 － 該消費方式的現金回收（樂豆點換現金／送禮折數回收／代抽折數回收）－ VIP 點數換現金；「VIP 點數留著不賣」則不扣 VIP 點數這一項。系統會自動標出六種組合中「全部回收後」現金花費最低的（可能是負數，代表這個組合本身就有賺頭）。
       </details>
     </div>
   </div>
@@ -420,20 +450,14 @@
       return twd;
     }
 
-    function buildStrategyHtml(icon, name, grossCash, giftCashBack, ldCashBack, vipCashBack, isBest) {
-      const netWithoutVip = grossCash - giftCashBack - ldCashBack;
+    function buildStrategyHtml(icon, name, grossCash, cashBackLabel, cashBackValue, vipCashBack, isBest) {
+      const netWithoutVip = grossCash - cashBackValue;
       const netWithVip = netWithoutVip - vipCashBack;
 
-      const giftRow = giftCashBack > 0 ? `
+      const cashBackRow = cashBackValue > 0 ? `
           <div class="result-item">
-            <span class="label">🎁 送禮折數回收現金</span>
-            <span class="value">${formatTwd(giftCashBack)}</span>
-          </div>` : "";
-
-      const ldRow = ldCashBack > 0 ? `
-          <div class="result-item">
-            <span class="label">🪙 樂豆點轉賣楓幣回收現金</span>
-            <span class="value">${formatTwd(ldCashBack)}</span>
+            <span class="label">${cashBackLabel}</span>
+            <span class="value">${formatTwd(cashBackValue)}</span>
           </div>` : "";
 
       return `
@@ -444,8 +468,7 @@
               <span class="label">💸 儲值花費（毛成本）</span>
               <span class="value">${formatTwd(grossCash)}</span>
             </div>
-            ${giftRow}
-            ${ldRow}
+            ${cashBackRow}
             <div class="result-item">
               <span class="label">💠 VIP 點數轉賣楓幣回收現金</span>
               <span class="value">${formatTwd(vipCashBack)}</span>
@@ -470,10 +493,11 @@
       const sellRate = parseFloat(document.getElementById("sellRate").value);
       const giftDiscountPercent = parseFloat(document.getElementById("giftDiscount").value);
       const cardDiscountPercent = parseFloat(document.getElementById("cardDiscount").value);
+      const daichouDiscountPercent = parseFloat(document.getElementById("daichouDiscount").value);
 
       const resultArea = document.getElementById("resultArea");
 
-      if ([ldNeeded, mesoMallRate, sellRate, giftDiscountPercent, cardDiscountPercent].some(v => isNaN(v) || v < 0)) {
+      if ([ldNeeded, mesoMallRate, sellRate, giftDiscountPercent, cardDiscountPercent, daichouDiscountPercent].some(v => isNaN(v) || v < 0)) {
         resultArea.innerHTML = `<div class="result-placeholder">⚠️ 請確認每個欄位都填了有效的數字</div>`;
         return;
       }
@@ -481,13 +505,14 @@
       const ratio = TIER_CONFIG[tier].ratio;
       const giftDiscount = giftDiscountPercent / 100;
       const cardDiscount = cardDiscountPercent / 100;
+      const daichouDiscount = daichouDiscountPercent / 100;
 
-      // VIP 點數只跟門檻樂豆點與階級比例有關，跟儲值管道、消費方式都無關
+      // VIP 點數只跟門檻樂豆點與階級比例有關（1 樂豆:階級比例點），跟儲值管道、消費方式都無關
       const vipPoints = ldNeeded * ratio;
       const vipToMp = vipPoints / 300;
       const vipCashBack = mpToTwd(vipToMp, mesoMallRate, sellRate);
 
-      // 消費方式一：直接消費（100% 算消費紀錄，樂豆點還在自己手上，可以換楓幣賣掉回收）
+      // 消費方式一：直接消費換楓幣賣（100% 算消費紀錄，樂豆點還在自己手上，可以換楓幣賣掉回收）
       const ldQtyDirect = ldNeeded;
       const ldCashBackDirect = mpToTwd(ldNeeded, mesoMallRate, sellRate);
 
@@ -497,40 +522,53 @@
       const ldQtyGift = ldNeeded / GIFT_VIP_PROGRESS_DISCOUNT;
       const giftCashBack = ldQtyGift * giftDiscount;
 
+      // 消費方式三：代抽（帳號內直接消費買抽獎商品，100% 算消費紀錄，不用像送禮多買；
+      // 回收靠把抽到的商品折現交給委託人，收代抽折數的費用）
+      const ldQtyDaichou = ldNeeded;
+      const daichouCashBack = ldQtyDaichou * daichouDiscount;
+
       // 儲值管道一：折扣點數卡
       const costPerLdCard = cardDiscount;
       // 儲值管道二：轉帳點數回饋（固定多拿 5%，等於每 1 樂豆點只要花 1/1.05 的現金）
       const costPerLdTransfer = 1 / (1 + BANK_TRANSFER_BONUS);
 
-      // 四種組合：儲值管道 x 消費方式
+      // 六種組合：儲值管道 x 消費方式
       const grossCardDirect = ldQtyDirect * costPerLdCard;
       const grossCardGift = ldQtyGift * costPerLdCard;
+      const grossCardDaichou = ldQtyDaichou * costPerLdCard;
       const grossTransferDirect = ldQtyDirect * costPerLdTransfer;
       const grossTransferGift = ldQtyGift * costPerLdTransfer;
+      const grossTransferDaichou = ldQtyDaichou * costPerLdTransfer;
 
       const netCardDirectWithVip = grossCardDirect - ldCashBackDirect - vipCashBack;
       const netCardGiftWithVip = grossCardGift - giftCashBack - vipCashBack;
+      const netCardDaichouWithVip = grossCardDaichou - daichouCashBack - vipCashBack;
       const netTransferDirectWithVip = grossTransferDirect - ldCashBackDirect - vipCashBack;
       const netTransferGiftWithVip = grossTransferGift - giftCashBack - vipCashBack;
+      const netTransferDaichouWithVip = grossTransferDaichou - daichouCashBack - vipCashBack;
 
       const netCosts = {
         cardDirect: netCardDirectWithVip,
         cardGift: netCardGiftWithVip,
+        cardDaichou: netCardDaichouWithVip,
         transferDirect: netTransferDirectWithVip,
-        transferGift: netTransferGiftWithVip
+        transferGift: netTransferGiftWithVip,
+        transferDaichou: netTransferDaichouWithVip
       };
       const cheapest = Object.keys(netCosts).reduce((a, b) => netCosts[a] <= netCosts[b] ? a : b);
 
       resultArea.innerHTML = `
         <div class="vip-points-banner">
-          <span>🎖️ 四種組合湊到門檻後，都可獲得的 VIP 點數</span>
+          <span>🎖️ 六種組合湊到門檻後，都可獲得的 VIP 點數</span>
           <span class="value">${formatNumber(vipPoints)}</span>
         </div>
         <div class="strategy-row">
-          ${buildStrategyHtml("💳🛒", "折扣點數卡＋直接消費", grossCardDirect, 0, ldCashBackDirect, vipCashBack, cheapest === "cardDirect")}
-          ${buildStrategyHtml("💳🎁", "折扣點數卡＋送禮", grossCardGift, giftCashBack, 0, vipCashBack, cheapest === "cardGift")}
-          ${buildStrategyHtml("🏦🛒", "轉帳點數回饋＋直接消費", grossTransferDirect, 0, ldCashBackDirect, vipCashBack, cheapest === "transferDirect")}
-          ${buildStrategyHtml("🏦🎁", "轉帳點數回饋＋送禮", grossTransferGift, giftCashBack, 0, vipCashBack, cheapest === "transferGift")}
+          ${buildStrategyHtml("💳🛒", "折扣點數卡＋直接消費", grossCardDirect, "🪙 樂豆點轉賣楓幣回收現金", ldCashBackDirect, vipCashBack, cheapest === "cardDirect")}
+          ${buildStrategyHtml("💳🎁", "折扣點數卡＋送禮", grossCardGift, "🎁 送禮折數回收現金", giftCashBack, vipCashBack, cheapest === "cardGift")}
+          ${buildStrategyHtml("💳🎰", "折扣點數卡＋代抽", grossCardDaichou, "🎰 代抽折數回收現金", daichouCashBack, vipCashBack, cheapest === "cardDaichou")}
+          ${buildStrategyHtml("🏦🛒", "轉帳點數回饋＋直接消費", grossTransferDirect, "🪙 樂豆點轉賣楓幣回收現金", ldCashBackDirect, vipCashBack, cheapest === "transferDirect")}
+          ${buildStrategyHtml("🏦🎁", "轉帳點數回饋＋送禮", grossTransferGift, "🎁 送禮折數回收現金", giftCashBack, vipCashBack, cheapest === "transferGift")}
+          ${buildStrategyHtml("🏦🎰", "轉帳點數回饋＋代抽", grossTransferDaichou, "🎰 代抽折數回收現金", daichouCashBack, vipCashBack, cheapest === "transferDaichou")}
         </div>
       `;
     }
