@@ -1341,16 +1341,20 @@
     } else {
       guests.forEach(g => {
         let participatedBosses = [];
+        const seenTeamIds = new Set(); // 💡 一個隊伍會被多個正式成員各自的 weeklyRecord 引用到，用 teamId 去重，避免同一隊重複顯示
         if (window.store && window.store.weeklyRecords && window.store.teams) {
           Object.keys(window.store.weeklyRecords).forEach(recordKey => {
             const rec = window.store.weeklyRecords[recordKey];
             if (rec && rec.teamId) {
+              if (seenTeamIds.has(rec.teamId)) return; // 這隊已經加過了，跳過
+
               const team = window.store.teams[rec.teamId];
               const members = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: rec.entryIndex }));
               
               if (team && members.some(m => m.charId === g.id)) {
                 const boss = window.config.bosses.find(b => b.id === rec.bossId);
                 if (boss) {
+                  seenTeamIds.add(rec.teamId);
                   participatedBosses.push({
                     recordKey: recordKey,
                     bossName: rec.entryIndex === 2 ? `${boss.name}(重置)` : boss.name,
