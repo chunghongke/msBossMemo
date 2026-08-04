@@ -696,38 +696,47 @@
 
       titleEl.innerText = `✏️ 編輯 ${targetChar.name} 的 BOSS 清單`;
 
+      // 💡 這個角色如果已經有設定重置券（resetBossIds），那些名額也要算進 12 隻上限，
+      //    不然這裡選滿 12 隻、加上原本的重置券，實際總數會超過 12
+      const reservedCount = targetChar.resetBossIds ? targetChar.resetBossIds.length : 0;
+
       bossListContainer.innerHTML = "";
       if (window.config.bosses && Array.isArray(window.config.bosses)) {
         window.config.bosses.forEach(boss => {
           const isChecked = targetChar.bossIds && targetChar.bossIds.includes(boss.id);
           bossListContainer.innerHTML += `
             <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #334155 !important;">
-              <input type="checkbox" class="edit-char-boss-checkbox" value="${boss.id}" ${isChecked ? 'checked' : ''} onchange="handleCharBossCheckboxLimit(this, '.edit-char-boss-checkbox', 'editCharBossCount')" />
+              <input type="checkbox" class="edit-char-boss-checkbox" value="${boss.id}" ${isChecked ? 'checked' : ''} onchange="handleCharBossCheckboxLimit(this, '.edit-char-boss-checkbox', 'editCharBossCount', ${reservedCount})" />
               ${boss.name}
             </label>
           `;
         });
       }
-      updateCharBossCountDisplay('.edit-char-boss-checkbox', 'editCharBossCount');
+      updateCharBossCountDisplay('.edit-char-boss-checkbox', 'editCharBossCount', reservedCount);
 
       modal.style.display = "flex";
     };
 
-    window.handleCharBossCheckboxLimit = function(checkbox, selector, countSpanId) {
+    window.handleCharBossCheckboxLimit = function(checkbox, selector, countSpanId, reservedCount) {
+      reservedCount = reservedCount || 0;
       const checked = document.querySelectorAll(`${selector}:checked`);
-      if (checked.length > 12) {
-        alert("最多只能選擇 12 隻 BOSS！");
+      if (checked.length + reservedCount > 12) {
+        const reservedNote = reservedCount > 0 ? `（含已設定重置券的 ${reservedCount} 隻）` : "";
+        alert(`最多只能選擇 12 隻 BOSS！${reservedNote}`);
         checkbox.checked = false;
       }
-      updateCharBossCountDisplay(selector, countSpanId);
+      updateCharBossCountDisplay(selector, countSpanId, reservedCount);
     };
 
-    window.updateCharBossCountDisplay = function(selector, countSpanId) {
+    window.updateCharBossCountDisplay = function(selector, countSpanId, reservedCount) {
+      reservedCount = reservedCount || 0;
       const span = document.getElementById(countSpanId);
       if (!span) return;
       const checkedCount = document.querySelectorAll(`${selector}:checked`).length;
-      span.innerText = `(已選 ${checkedCount} / 12)`;
-      if (checkedCount >= 12) {
+      const totalCount = checkedCount + reservedCount;
+      const reservedNote = reservedCount > 0 ? `，含重置券 ${reservedCount}` : "";
+      span.innerText = `(已選 ${checkedCount} / 12${reservedNote})`;
+      if (totalCount >= 12) {
         span.style.color = '#e11d48';
       } else {
         span.style.color = '#64748b';
@@ -747,31 +756,41 @@
       const checkboxes = document.querySelectorAll(".edit-char-boss-checkbox:checked");
       checkboxes.forEach(cb => selectedBossIds.push(cb.value));
 
-      if (selectedBossIds.length > 12) {
-        alert(`最多只能選擇 12 隻 BOSS！(目前勾選了 ${selectedBossIds.length} 隻)`);
-        return;
-      }
-
-      let updated = false;
+      // 先找到角色本人，才能算入既有的重置券數量
+      let targetChar = null;
       if (window.config.players) {
         for (const player of window.config.players) {
           if (player.characters) {
-            const targetChar = player.characters.find(c => c.id === currentEditingCharId);
-            if (targetChar) {
-              targetChar.bossIds = selectedBossIds;
-              
-              if (targetChar.resetBossIds) {
-                // 💡 重置券可能是「跳難度」設定的（reset boss id 不在 bossIds 裡，例如困難->極限）
-                //    只要該重置目標所屬的 BOSS 群組，角色還有排定任一難度，就保留；群組整個被移除才清掉
-                const selectedGroupKeys = new Set(selectedBossIds.map(bId => getBossGroupKey(bId)));
-                targetChar.resetBossIds = targetChar.resetBossIds.filter(bId => selectedGroupKeys.has(getBossGroupKey(bId)));
-              }
-              
-              updated = true;
+            const found = player.characters.find(c => c.id === currentEditingCharId);
+            if (found) {
+              targetChar = found;
               break;
             }
           }
         }
+      }
+
+      // 💡 12 隻上限要把已經設定的重置券（resetBossIds）也算進去，不然這裡選滿 12 隻、
+      //    加上原本的重置券，實際總數會超過 12（跟畫面上的即時檢查邏輯保持一致）
+      const reservedCount = targetChar && targetChar.resetBossIds ? targetChar.resetBossIds.length : 0;
+      if (selectedBossIds.length + reservedCount > 12) {
+        const reservedNote = reservedCount > 0 ? `（含已設定重置券的 ${reservedCount} 隻）` : "";
+        alert(`最多只能選擇 12 隻 BOSS！${reservedNote}(目前勾選了 ${selectedBossIds.length} 隻)`);
+        return;
+      }
+
+      let updated = false;
+      if (targetChar) {
+        targetChar.bossIds = selectedBossIds;
+
+        if (targetChar.resetBossIds) {
+          // 💡 重置券可能是「跳難度」設定的（reset boss id 不在 bossIds 裡，例如困難->極限）
+          //    只要該重置目標所屬的 BOSS 群組，角色還有排定任一難度，就保留；群組整個被移除才清掉
+          const selectedGroupKeys = new Set(selectedBossIds.map(bId => getBossGroupKey(bId)));
+          targetChar.resetBossIds = targetChar.resetBossIds.filter(bId => selectedGroupKeys.has(getBossGroupKey(bId)));
+        }
+
+        updated = true;
       }
 
       if (!updated) {
