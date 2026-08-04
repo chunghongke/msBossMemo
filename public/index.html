@@ -1817,6 +1817,9 @@
       if (sel.charId === editingCharId) return;
       const oldMembers = oldTeamsByTarget.get(targetKey(sel)) || [];
       oldMembers.forEach(m => {
+        // 💡 Guest 在這個組隊視窗裡永遠都是可見、可以自己勾/取消的選項（不像正式角色可能因為沒排定這隻 BOSS 而完全不會出現），
+        //    所以不強制把 Guest 合併回來，尊重使用者當下實際的勾選狀態，避免明明取消勾選了、存檔後又被偷偷加回去
+        if (m.charId.startsWith("guest_")) return;
         if (!finalMap.has(targetKey(m))) {
           finalMap.set(targetKey(m), m);
           autoMergedNames.push(getCharName(m.charId));
