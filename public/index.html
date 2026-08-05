@@ -354,6 +354,16 @@
       color: var(--badge-full-text);
     }
 
+    .removed-completed-note {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-not-completed);
+      border-radius: 6px;
+      padding: 4px 8px;
+      margin: 4px 0 8px 0;
+      cursor: default;
+    }
+
     /* ==========================================
        5. BOSS 網格 (Boss Grid & Cells)
        ========================================== */
@@ -964,6 +974,29 @@
     return count;
   }
 
+  // 找出角色「本週已完成，但已經被移出 BOSS 清單」的紀錄（只顯示、不可再互動切換）
+  function getRemovedCompletedBosses(c) {
+    const removed = [];
+    if (!window.store.weeklyRecords) return removed;
+
+    Object.values(window.store.weeklyRecords).forEach(record => {
+      if (!record || record.charId !== c.id || !record.isCompleted) return;
+
+      const stillAssigned = record.entryIndex === 2
+        ? (c.resetBossIds && c.resetBossIds.includes(record.bossId))
+        : (!c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(record.bossId));
+
+      if (stillAssigned) return;
+
+      const boss = window.config.bosses.find(b => b.id === record.bossId);
+      if (!boss) return;
+
+      removed.push(record.entryIndex === 2 ? `${boss.name}(重置)` : boss.name);
+    });
+
+    return removed;
+  }
+
   // 把原始結晶錢數值格式化成「萬」，保留一位小數（例：3333333 -> "333.3萬"）
   // 把原始結晶錢數值格式化成「億萬」，超過 1 億會拆成 X億Y.Y萬，沒到 1 億就只顯示 Y.Y萬
   function formatCrystal(rawValue) {
@@ -1185,6 +1218,13 @@
                 </div>
                 <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / ${selectedBossCount}</span>
               </div>
+              ${(() => {
+                const removedCompleted = getRemovedCompletedBosses(c);
+                if (removedCompleted.length === 0) return '';
+                return `<div class="removed-completed-note" title="這些 BOSS 已經從清單移除，本週完成紀錄仍會計入次數，但不能再切換攻略狀態">
+                  🗑️ 已完成但移出清單：${removedCompleted.join('、')}
+                </div>`;
+              })()}
               <div class="boss-grid">
           `;
 
@@ -1820,14 +1860,32 @@
         // 💡 Guest 在這個組隊視窗裡永遠都是可見、可以自己勾/取消的選項（不像正式角色可能因為沒排定這隻 BOSS 而完全不會出現），
         //    所以不強制把 Guest 合併回來，尊重使用者當下實際的勾選狀態，避免明明取消勾選了、存檔後又被偷偷加回去
         if (m.charId.startsWith("guest_")) return;
-        if (!finalMap.has(targetKey(m))) {
-          finalMap.set(targetKey(m), m);
-          autoMergedNames.push(getCharName(m.charId));
-        }
+        if (finalMap.has(targetKey(m))) return;
+
+        // 💡 這個人已經用「另一個身份」（不同 entryIndex）出現在目前名單裡了，不要再合併回來，
+        //    避免形成同一人同時佔用首刷+重置兩個身份的無效狀態（也避免跟下面的重複檢查形成死結）
+        const alreadyPresentAtOtherEntry = Array.from(finalMap.values()).some(existing => existing.charId === m.charId);
+        if (alreadyPresentAtOtherEntry) return;
+
+        finalMap.set(targetKey(m), m);
+        autoMergedNames.push(getCharName(m.charId));
       });
     });
 
     const finalTargets = Array.from(finalMap.values());
+
+    // 💡 同一個角色不能同時以「首刷」跟「重置刷」的身份出現在同一隊裡——
+    //    這會讓兩筆本該獨立的紀錄共用同一個 teamId，導致切換完成狀態時兩邊被綁在一起同步
+    const charIdCounts = new Map();
+    finalTargets.forEach(t => {
+      charIdCounts.set(t.charId, (charIdCounts.get(t.charId) || 0) + 1);
+    });
+    const duplicatedCharIds = Array.from(charIdCounts.entries()).filter(([, cnt]) => cnt > 1).map(([id]) => id);
+    if (duplicatedCharIds.length > 0) {
+      const names = duplicatedCharIds.map(id => getCharName(id)).join("、");
+      alert(`「${names}」不能同時以「首次刷」跟「重置刷」的身份出現在同一個隊伍裡，這樣兩邊的完成狀態會被綁在一起、沒辦法分開紀錄。\n請確認每個角色只勾選其中一個身份。`);
+      return;
+    }
 
     if (finalTargets.length > boss.maxPartySize) {
       const mergedNote = autoMergedNames.length > 0 ? `（含自動合併的隊友：${autoMergedNames.join(", ")}）` : "";
