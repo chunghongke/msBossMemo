@@ -2760,8 +2760,19 @@
       timerEl.innerText = `⏳ 距離重置：${days}天 ${hours}時 ${minutes}分`;
     }
 
+    // 每 60 秒偵測一次是否已經跨過週四重置點，讓頁面開著也能自動刷新，不用手動重新整理
+    function checkWeeklyResetPeriodically() {
+      if (checkAndPerformWeeklyReset()) {
+        saveStoreToCloud();
+        renderApp();
+      }
+    }
+
     // 每 60 秒更新一次
-    setInterval(updateResetTimer, 60000);
+    setInterval(() => {
+      updateResetTimer();
+      checkWeeklyResetPeriodically();
+    }, 60000);
   </script>
 </head>
 <body>
