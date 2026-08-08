@@ -385,6 +385,49 @@
       font-weight: bold;
     }
 
+    .archive-card {
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: var(--result-bg);
+    }
+
+    .archive-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .archive-title {
+      font-weight: bold;
+      font-size: 15px;
+      color: var(--title-color);
+    }
+
+    .archive-date {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .archive-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      font-size: 13px;
+      color: var(--text-main);
+      margin-bottom: 10px;
+    }
+
+    .archive-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .toolbar {
       display: flex;
       gap: 8px;
@@ -423,6 +466,7 @@
     <button class="tab-btn" data-tab="listings" onclick="switchTab('listings')">🏷️ 楓幣掛收紀錄</button>
     <button class="tab-btn" data-tab="sales" onclick="switchTab('sales')">💱 賣幣交易紀錄</button>
     <button class="tab-btn" data-tab="summary" onclick="switchTab('summary')">📊 成本估算摘要</button>
+    <button class="tab-btn" data-tab="archives" onclick="switchTab('archives')">📁 歷史封存</button>
   </div>
 
   <!-- 儲值紀錄 -->
@@ -563,6 +607,21 @@
     </div>
   </div>
 
+  <!-- 歷史封存 -->
+  <div class="tab-panel" id="panel-archives">
+    <div class="card">
+      <div class="card-head">
+        <h3>📁 歷史封存</h3>
+        <button class="btn" onclick="archiveAndReset()">📦 封存目前紀錄並重置</button>
+      </div>
+      <div id="archiveList"></div>
+      <div class="hint-box">
+        「封存並重置」會把目前的儲值／掛收／賣幣紀錄整批存成一輪歷史封存（存在這台裝置的瀏覽器裡），同時清空畫面讓你可以重新開始記帳，並額外自動下載一份該輪的 JSON 備份，多一層保險。<br>
+        之後可以在下面清單裡查看每一輪的花費／回收概況，需要的話可以匯出、還原回畫面繼續編輯，或刪除不需要的封存。
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script>
@@ -579,6 +638,7 @@
       listings: "mapleLedger_listings",
       sales: "mapleLedger_sales"
     };
+    const ARCHIVE_KEY = "mapleLedger_archives";
 
     function pad2(n) { return String(n).padStart(2, "0"); }
 
@@ -634,6 +694,7 @@
     };
 
     let DATA = { deposits: [], listings: [], sales: [] };
+    let ARCHIVES = [];
 
     function loadAll() {
       for (const table of Object.keys(STORE_KEYS)) {
@@ -644,6 +705,19 @@
           DATA[table] = [];
         }
       }
+    }
+
+    function loadArchives() {
+      try {
+        const raw = localStorage.getItem(ARCHIVE_KEY);
+        ARCHIVES = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        ARCHIVES = [];
+      }
+    }
+
+    function saveArchives() {
+      localStorage.setItem(ARCHIVE_KEY, JSON.stringify(ARCHIVES));
     }
 
     function saveTable(table) {
@@ -1048,6 +1122,134 @@
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
       document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tab));
       if (tab === "summary") renderSummary();
+      if (tab === "archives") renderArchives();
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str === undefined || str === null ? "" : String(str);
+      return div.innerHTML;
+    }
+
+    function computeArchiveStats(archive) {
+      const spend = (archive.deposits || []).reduce((acc, r) => acc + (parseFloat(r.twd) || 0), 0);
+      const recovery = (archive.sales || []).reduce((acc, r) => acc + (parseFloat(r.twd) || 0), 0);
+      return {
+        spend, recovery, netCost: spend - recovery,
+        depositCount: (archive.deposits || []).length,
+        listingCount: (archive.listings || []).length,
+        saleCount: (archive.sales || []).length
+      };
+    }
+
+    function downloadArchiveJson(archive) {
+      if (!archive) return;
+      const payload = { deposits: archive.deposits, listings: archive.listings, sales: archive.sales };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeLabel = String(archive.label || "封存").replace(/[\\/:*?"<>|]/g, "_");
+      a.href = url;
+      a.download = `maple-ledger-${safeLabel}-${todayDate()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function archiveAndReset() {
+      if (!DATA.deposits.length && !DATA.listings.length && !DATA.sales.length) {
+        alert("目前沒有任何紀錄，不需要封存。");
+        return;
+      }
+      const defaultLabel = `封存 ${todayDate()}`;
+      const label = prompt("幫這一輪紀錄取個名字（例如：第一輪、活動前等），方便之後在歷史封存裡辨識：", defaultLabel);
+      if (label === null) return;
+      if (!confirm("封存後會清空目前的儲值／掛收／賣幣紀錄，讓你可以重新開始記帳。封存的資料還是可以在「📁 歷史封存」查看、匯出或還原，確定要繼續嗎？")) return;
+
+      const archive = {
+        id: newId(),
+        label: label.trim() || defaultLabel,
+        archivedAt: nowDateTimeLocal(),
+        deposits: JSON.parse(JSON.stringify(DATA.deposits)),
+        listings: JSON.parse(JSON.stringify(DATA.listings)),
+        sales: JSON.parse(JSON.stringify(DATA.sales))
+      };
+      ARCHIVES.unshift(archive);
+      saveArchives();
+      downloadArchiveJson(archive);
+
+      DATA.deposits = [];
+      DATA.listings = [];
+      DATA.sales = [];
+      ["deposits", "listings", "sales"].forEach(saveTable);
+      renderTable("deposits");
+      renderTable("listings");
+      renderTable("sales");
+      renderSummary();
+      renderArchives();
+      alert("已經封存這一輪紀錄，畫面已經清空，可以重新開始記帳囉！（也順便幫你下載了一份這一輪的 JSON 備份）");
+    }
+
+    function restoreArchive(id) {
+      const archive = ARCHIVES.find(a => a.id === id);
+      if (!archive) return;
+      const hasCurrentData = DATA.deposits.length || DATA.listings.length || DATA.sales.length;
+      const msg = hasCurrentData
+        ? `目前畫面上還有紀錄，還原「${archive.label}」會直接覆蓋掉目前畫面上的紀錄，確定要繼續嗎？建議先封存或匯出目前的紀錄。`
+        : `確定要把「${archive.label}」這一輪還原回畫面上繼續編輯嗎？`;
+      if (!confirm(msg)) return;
+
+      DATA.deposits = JSON.parse(JSON.stringify(archive.deposits || []));
+      DATA.listings = JSON.parse(JSON.stringify(archive.listings || []));
+      DATA.sales = JSON.parse(JSON.stringify(archive.sales || []));
+      ["deposits", "listings", "sales"].forEach(saveTable);
+      renderTable("deposits");
+      renderTable("listings");
+      renderTable("sales");
+      renderSummary();
+      switchTab("deposits");
+      alert(`已還原「${archive.label}」這一輪的紀錄。`);
+    }
+
+    function deleteArchive(id) {
+      const archive = ARCHIVES.find(a => a.id === id);
+      if (!archive) return;
+      if (!confirm(`確定要刪除封存「${archive.label}」嗎？這個動作沒辦法復原（如果之前有下載過 JSON 備份，檔案還是留得住）。`)) return;
+      ARCHIVES = ARCHIVES.filter(a => a.id !== id);
+      saveArchives();
+      renderArchives();
+    }
+
+    function renderArchives() {
+      const container = document.getElementById("archiveList");
+      if (!container) return;
+
+      if (ARCHIVES.length === 0) {
+        container.innerHTML = `<div class="empty-row" style="padding:24px;text-align:center;color:var(--text-muted);border:1px dashed var(--border-color);border-radius:8px;">還沒有封存紀錄，按上面「📦 封存目前紀錄並重置」開始第一輪封存。</div>`;
+        return;
+      }
+
+      container.innerHTML = ARCHIVES.map(a => {
+        const stats = computeArchiveStats(a);
+        return `
+        <div class="archive-card">
+          <div class="archive-card-head">
+            <div class="archive-title">${escapeHtml(a.label)}</div>
+            <div class="archive-date">封存於 ${escapeHtml(a.archivedAt)}</div>
+          </div>
+          <div class="archive-stats">
+            <span>💸 花費 ${fmtMoney(stats.spend)} 元</span>
+            <span>💰 回收 ${fmtMoney(stats.recovery)} 元</span>
+            <span>✅ 淨成本 ${fmtMoney(stats.netCost)} 元</span>
+            <span>📋 ${stats.depositCount} 筆儲值／${stats.listingCount} 筆掛收／${stats.saleCount} 筆賣幣</span>
+          </div>
+          <div class="archive-actions">
+            <button class="btn secondary small" onclick="downloadArchiveJson(ARCHIVES.find(x => x.id === '${a.id}'))">⬇️ 匯出JSON</button>
+            <button class="btn secondary small" onclick="restoreArchive('${a.id}')">♻️ 還原這一輪</button>
+            <button class="btn danger small" onclick="deleteArchive('${a.id}')">🗑️ 刪除封存</button>
+          </div>
+        </div>
+      `;
+      }).join("");
     }
 
     function exportData() {
@@ -1163,6 +1365,7 @@
     document.addEventListener("DOMContentLoaded", function () {
       updateThemeButton(document.documentElement.classList.contains("dark-mode"));
       loadAll();
+      loadArchives();
       renderTable("deposits");
       renderTable("listings");
       renderTable("sales");
