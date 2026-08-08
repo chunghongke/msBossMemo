@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>實際花費與交易紀錄</title>
+  <link rel="icon" href="../public/icon.png">
+  <style>
+    :root {
+      --body-bg: #f8fafc;
+      --text-main: #334155;
+      --text-muted: #64748b;
+      --title-color: #1e293b;
+
+      --card-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --border-darker: #cbd5e1;
+      --input-bg: #ffffff;
+
+      --result-bg: #f1f5f9;
+      --result-highlight-bg: #dcfce7;
+      --result-highlight-text: #15803d;
+
+      --danger-bg: #fee2e2;
+      --danger-text: #b91c1c;
+
+      --shadow-md: rgba(0, 0, 0, 0.05);
+    }
+
+    html.dark-mode {
+      --body-bg: #0f172a;
+      --text-main: #cbd5e1;
+      --text-muted: #94a3b8;
+      --title-color: #f1f5f9;
+
+      --card-bg: #1e293b;
+      --border-color: #334155;
+      --border-darker: #475569;
+      --input-bg: #0f172a;
+
+      --result-bg: #334155;
+      --result-highlight-bg: #064e3b;
+      --result-highlight-text: #6ee7b7;
+
+      --danger-bg: #450a0a;
+      --danger-text: #fca5a5;
+
+      --shadow-md: rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 20px;
+      background-color: var(--body-bg);
+      color: var(--text-main);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      background: var(--card-bg);
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 1px 3px var(--shadow-md);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .header h2 {
+      margin: 0;
+      font-size: 20px;
+      color: var(--title-color);
+    }
+
+    .header-links {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 6px 12px;
+      background-color: #0284c7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background-color: #0369a1;
+    }
+
+    .btn.secondary {
+      background-color: var(--card-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      font-weight: normal;
+    }
+
+    .btn.secondary:hover {
+      border-color: var(--border-darker);
+      background-color: var(--card-bg);
+    }
+
+    .btn.danger {
+      background-color: var(--danger-bg);
+      color: var(--danger-text);
+      font-weight: normal;
+    }
+
+    .btn.danger:hover {
+      opacity: 0.85;
+      background-color: var(--danger-bg);
+    }
+
+    .btn.small {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .theme-toggle-btn {
+      background: var(--card-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nav-link {
+      background: var(--card-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nav-link:hover {
+      border-color: var(--border-darker);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: 8px 16px;
+      background: var(--card-bg);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .tab-btn.active {
+      background: #0284c7;
+      color: white;
+      border-color: #0284c7;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px var(--shadow-md);
+      max-width: 1360px;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .card-head h3 {
+      margin: 0;
+      color: var(--title-color);
+      font-size: 16px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--border-color);
+      padding: 6px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      background: var(--result-bg);
+      color: var(--text-muted);
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+    }
+
+    td[contenteditable="true"] {
+      background: var(--input-bg);
+      cursor: text;
+    }
+
+    td[contenteditable="true"]:focus {
+      outline: 2px solid #0284c7;
+      outline-offset: -2px;
+    }
+
+    td.computed {
+      background: var(--result-bg);
+      color: var(--title-color);
+      font-weight: bold;
+    }
+
+    td select,
+    td input[type="date"],
+    td input[type="datetime-local"] {
+      width: 100%;
+      border: none;
+      background: var(--input-bg);
+      color: var(--text-main);
+      font-size: 13px;
+      padding: 2px;
+    }
+
+    td select:focus,
+    td input[type="date"]:focus,
+    td input[type="datetime-local"]:focus {
+      outline: 2px solid #0284c7;
+    }
+
+    tfoot td {
+      background: var(--result-bg);
+      font-weight: bold;
+      color: var(--title-color);
+    }
+
+    .empty-row td {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 20px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .summary-item {
+      background: var(--result-bg);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .summary-item.highlight {
+      background: var(--result-highlight-bg);
+    }
+
+    .summary-item.highlight .value {
+      color: var(--result-highlight-text);
+    }
+
+    .summary-item .label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .summary-item .value {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--title-color);
+    }
+
+    .hint-box {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border-color);
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    .chart-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 2px solid var(--border-color);
+    }
+
+    .chart-head {
+      margin-bottom: 10px;
+    }
+
+    .chart-head h3 {
+      margin: 0;
+      color: var(--title-color);
+      font-size: 16px;
+    }
+
+    .chart-wrap {
+      background: var(--result-bg);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .breakeven-note {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: var(--result-bg);
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-main);
+    }
+
+    .breakeven-note.hit {
+      background: var(--result-highlight-bg);
+      color: var(--result-highlight-text);
+      font-weight: bold;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        margin: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <div class="header-links">
+      <h2>📒 實際花費與交易紀錄</h2>
+      <a class="nav-link" href="index.html">💰 VIP 升階計算機</a>
+      <a class="nav-link" href="../public/index.html">📋 BOSS 備忘錄</a>
+    </div>
+    <div class="toolbar">
+      <button class="btn secondary" onclick="exportData()">⬇️ 匯出備份(JSON)</button>
+      <button class="btn secondary" onclick="exportExcel()">📊 匯出 Excel</button>
+      <button class="btn secondary" onclick="document.getElementById('importFile').click()">⬆️ 匯入備份</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
+      <button class="theme-toggle-btn" onclick="toggleTheme()">
+        <span id="themeIcon">🌙</span> <span id="themeText">深色模式</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="deposits" onclick="switchTab('deposits')">💳 儲值紀錄</button>
+    <button class="tab-btn" data-tab="listings" onclick="switchTab('listings')">🏷️ 楓幣掛收紀錄</button>
+    <button class="tab-btn" data-tab="sales" onclick="switchTab('sales')">💱 賣幣交易紀錄</button>
+    <button class="tab-btn" data-tab="summary" onclick="switchTab('summary')">📊 成本估算摘要</button>
+  </div>
+
+  <!-- 儲值紀錄 -->
+  <div class="tab-panel active" id="panel-deposits">
+    <div class="card">
+      <div class="card-head">
+        <h3>💳 儲值紀錄</h3>
+        <button class="btn" onclick="addRow('deposits')">＋ 新增一筆</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:120px">日期</th>
+              <th style="min-width:110px">儲值方式</th>
+              <th style="min-width:100px">花費台幣</th>
+              <th style="min-width:100px">取得樂豆點</th>
+              <th style="min-width:160px">備註</th>
+              <th>刪除</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-deposits"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">合計</td>
+              <td id="total-deposits-twd">-</td>
+              <td id="total-deposits-points">-</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="hint-box">「取得樂豆點」會依儲值方式自動算好：折扣點數卡＝花費台幣 ÷ 0.93；轉帳＝花費台幣 × 1.05。改「花費台幣」或「儲值方式」時會自動重算，如果實際入帳數字不同也可以自己再手動改。
+      </div>
+    </div>
+  </div>
+
+  <!-- 楓幣掛收紀錄 -->
+  <div class="tab-panel" id="panel-listings">
+    <div class="card">
+      <div class="card-head">
+        <h3>🏷️ 楓幣掛收紀錄</h3>
+        <button class="btn" onclick="addRow('listings')">＋ 新增一筆</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:120px">日期</th>
+              <th style="min-width:100px">掛收楓幣(億)</th>
+              <th style="min-width:110px">楓點比值(楓點:1億)</th>
+              <th style="min-width:130px">楓點來源</th>
+              <th style="min-width:100px">伺服器</th>
+              <th style="min-width:80px">已成交</th>
+              <th style="min-width:170px">成交時間</th>
+              <th style="min-width:160px">備註</th>
+              <th>刪除</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-listings"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="1">合計</td>
+              <td id="total-listings-amount">-</td>
+              <td colspan="6"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="hint-box">
+        這張表記的是掛單「收」楓幣（花楓點換回楓幣）的紀錄；新增時「已成交」預設不勾選，代表目前掛單中還沒成交。等實際成交、楓幣入袋之後，把「成交時間」填上去，「已成交」就會自動打勾（清空成交時間也會自動取消勾選）。只有打勾的才會被算進下面「庫存楓幣」，避免把還沒成交的算進去。「楓點來源」請標記這筆用的楓點是花樂豆點買的，還是
+        VIP 點數兌換來的免費楓點——免費來源不會實際花到現金或樂豆點，方便你之後估算真實成本時心裡有數。</div>
+    </div>
+  </div>
+
+  <!-- 賣幣交易紀錄 -->
+  <div class="tab-panel" id="panel-sales">
+    <div class="card">
+      <div class="card-head">
+        <h3>💱 賣幣交易紀錄</h3>
+        <button class="btn" onclick="addRow('sales')">＋ 新增一筆</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:170px">日期時間</th>
+              <th style="min-width:100px">賣出楓幣(億)</th>
+              <th style="min-width:110px">賣幣比值(1台幣:萬楓幣)</th>
+              <th style="min-width:100px">伺服器</th>
+              <th style="min-width:100px">回收台幣</th>
+              <th style="min-width:160px">買家/備註</th>
+              <th>刪除</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-sales"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="1">合計</td>
+              <td id="total-sales-amount">-</td>
+              <td colspan="1"></td>
+              <td colspan="1"></td>
+              <td id="total-sales-twd">-</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="hint-box">「回收台幣」會自動用 賣出楓幣(億) × 10000 ÷ 賣幣比值(萬)
+        算好，四捨五入到整數元；如果實際成交金額有議價或零頭，可以直接點進欄位手動改，之後只要再改「賣出楓幣」或「賣幣比值」才會被重新蓋過去。</div>
+    </div>
+  </div>
+
+  <!-- 成本估算摘要 -->
+  <div class="tab-panel" id="panel-summary">
+    <div class="card">
+      <div class="card-head">
+        <h3>📊 成本估算摘要</h3>
+        <button class="btn secondary" onclick="renderSummary()">🔄 重新計算</button>
+      </div>
+      <div class="summary-grid" id="summaryGrid"></div>
+
+      <div class="chart-section">
+        <div class="chart-head">
+          <h3>📈 累積花費 vs 累積回收趨勢</h3>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="costChart" height="300"></canvas>
+        </div>
+        <div id="breakevenNote" class="breakeven-note"></div>
+      </div>
+
+      <div class="hint-box">
+        淨成本 = 總儲值花費 － 總賣幣收入。平均每億楓幣成本 = 淨成本 ÷ 已賣出楓幣(億)，可以拿來跟「VIP 升階計算機」頁面估算的數字比對，看實際花費是不是跟估計差太多。<br>
+        庫存楓幣(億) = 已成交的楓幣總量 － 已賣出楓幣總量，只有「已成交」打勾的掛收才會算進去，掛單中還沒成交的不計入。<br>
+        淨成本本身是純現金流（花費－收入），不管賣掉的楓幣是樂豆點換的還是 VIP 點數換的免費楓幣都已經算在裡面；「樂豆點兌換／VIP點數兌換」的拆分只是讓你知道目前庫存裡有多少是不花錢的部分。
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script>
+    const SERVERS = ["挑戰者", "艾麗亞", "普力特", "琉德", "優伊娜", "愛麗西亞", "殺人鯨"];
+    const MP_RATIOS = ["1", "2", "3", "4", "5", "6", "7"];
+    const SELL_RATES = ["2400", "2450", "2500", "2550", "2600", "2650", "2700", "2750", "2800"];
+    const MP_SOURCES = ["樂豆點兌換", "VIP點數兌換(免費)"];
+
+    const CARD_DISCOUNT = 0.93;   // 折扣點數卡：花費台幣 / 0.93 = 取得樂豆點
+    const TRANSFER_BONUS = 1.05;  // 轉帳：花費台幣 * 1.05 = 取得樂豆點
+
+    const STORE_KEYS = {
+      deposits: "mapleLedger_deposits",
+      listings: "mapleLedger_listings",
+      sales: "mapleLedger_sales"
+    };
+
+    function pad2(n) { return String(n).padStart(2, "0"); }
+
+    function todayDate() {
+      const d = new Date();
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
+
+    function nowDateTimeLocal() {
+      const d = new Date();
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+
+    function calcDepositPoints(twd, method) {
+      const twdNum = parseFloat(twd) || 0;
+      if (method === "轉帳") return Math.round(twdNum * TRANSFER_BONUS);
+      return Math.round(twdNum / CARD_DISCOUNT);
+    }
+
+    function calcSaleTwd(amount, rateWan) {
+      const amt = parseFloat(amount) || 0;
+      const rate = parseFloat(rateWan) || 0;
+      if (!rate) return 0;
+      return Math.round((amt * 10000) / rate);
+    }
+
+    const SCHEMAS = {
+      deposits: [
+        { key: "date", type: "date", default: () => todayDate() },
+        { key: "method", type: "select", options: ["折扣點數卡", "轉帳"], default: () => "轉帳" },
+        { key: "twd", type: "number", default: () => 5000 },
+        { key: "points", type: "computed-editable", default: () => calcDepositPoints(5000, "轉帳") },
+        { key: "note", type: "text", default: () => "" }
+      ],
+      listings: [
+        { key: "date", type: "date", default: () => todayDate() },
+        { key: "amount", type: "number", default: () => 1000 },
+        { key: "rate", type: "select", options: MP_RATIOS, default: () => "4" },
+        { key: "source", type: "select", options: MP_SOURCES, default: () => MP_SOURCES[0] },
+        { key: "server", type: "select", options: SERVERS, default: () => SERVERS[0] },
+        { key: "listed", type: "checkbox-auto", default: () => false },
+        { key: "foundTime", type: "datetime-local", default: () => "" },
+        { key: "note", type: "text", default: () => "" }
+      ],
+      sales: [
+        { key: "date", type: "datetime-local", default: () => nowDateTimeLocal() },
+        { key: "amount", type: "number", default: () => "" },
+        { key: "rate", type: "select", options: SELL_RATES, default: () => "2650" },
+        { key: "server", type: "select", options: SERVERS, default: () => SERVERS[0] },
+        { key: "twd", type: "computed-editable", default: () => 0 },
+        { key: "note", type: "text", default: () => "" }
+      ]
+    };
+
+    let DATA = { deposits: [], listings: [], sales: [] };
+
+    function loadAll() {
+      for (const table of Object.keys(STORE_KEYS)) {
+        try {
+          const raw = localStorage.getItem(STORE_KEYS[table]);
+          DATA[table] = raw ? JSON.parse(raw) : [];
+        } catch (e) {
+          DATA[table] = [];
+        }
+      }
+    }
+
+    function saveTable(table) {
+      localStorage.setItem(STORE_KEYS[table], JSON.stringify(DATA[table]));
+    }
+
+    function newId() {
+      return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function addRow(table) {
+      const row = { id: newId() };
+      SCHEMAS[table].forEach(f => { row[f.key] = f.default ? f.default() : ""; });
+      if (table === "sales") row.twd = calcSaleTwd(row.amount, row.rate);
+      DATA[table].unshift(row);
+      saveTable(table);
+      renderTable(table);
+    }
+
+    function deleteRow(table, id) {
+      if (!confirm("確定要刪除這一筆紀錄嗎？")) return;
+      DATA[table] = DATA[table].filter(r => r.id !== id);
+      saveTable(table);
+      renderTable(table);
+    }
+
+    function recalcRow(table, row) {
+      if (table === "deposits") {
+        row.points = calcDepositPoints(row.twd, row.method);
+      } else if (table === "sales") {
+        row.twd = calcSaleTwd(row.amount, row.rate);
+      } else if (table === "listings") {
+        row.listed = !!(row.foundTime && String(row.foundTime).trim());
+      }
+    }
+
+    function updateField(table, id, key, value, isNumber) {
+      const row = DATA[table].find(r => r.id === id);
+      if (!row) return;
+      row[key] = isNumber ? (value === "" ? "" : parseFloat(value)) : value;
+      if (table === "deposits" && (key === "twd" || key === "method")) recalcRow(table, row);
+      if (table === "sales" && (key === "amount" || key === "rate")) recalcRow(table, row);
+      if (table === "listings" && key === "foundTime") recalcRow(table, row);
+      saveTable(table);
+      renderTable(table);
+      if (document.getElementById("panel-summary").classList.contains("active")) renderSummary();
+    }
+
+    function fmtMoney(n) {
+      if (isNaN(n) || n === null) return "-";
+      return Math.round(n).toLocaleString("zh-TW");
+    }
+
+    function sumField(table, key, filterFn) {
+      return DATA[table]
+        .filter(r => !filterFn || filterFn(r))
+        .reduce((acc, r) => acc + (parseFloat(r[key]) || 0), 0);
+    }
+
+    function renderTable(table) {
+      const tbody = document.getElementById("tbody-" + table);
+      const schema = SCHEMAS[table];
+      tbody.innerHTML = "";
+
+      if (DATA[table].length === 0) {
+        const tr = document.createElement("tr");
+        tr.className = "empty-row";
+        tr.innerHTML = `<td colspan="${schema.length + 1}">還沒有紀錄，按上面「＋ 新增一筆」開始記帳</td>`;
+        tbody.appendChild(tr);
+        renderFooter(table);
+        return;
+      }
+
+      DATA[table].forEach(row => {
+        const tr = document.createElement("tr");
+        schema.forEach(f => {
+          const td = document.createElement("td");
+          if (f.type === "select") {
+            const select = document.createElement("select");
+            f.options.forEach(opt => {
+              const o = document.createElement("option");
+              o.value = opt; o.textContent = opt;
+              if (String(row[f.key]) === String(opt)) o.selected = true;
+              select.appendChild(o);
+            });
+            select.onchange = () => updateField(table, row.id, f.key, select.value, false);
+            td.appendChild(select);
+          } else if (f.type === "date") {
+            const input = document.createElement("input");
+            input.type = "date";
+            input.value = row[f.key] || "";
+            input.onchange = () => updateField(table, row.id, f.key, input.value, false);
+            td.appendChild(input);
+          } else if (f.type === "datetime-local") {
+            const input = document.createElement("input");
+            input.type = "datetime-local";
+            input.value = row[f.key] || "";
+            input.onchange = () => updateField(table, row.id, f.key, input.value, false);
+            td.appendChild(input);
+          } else if (f.type === "computed") {
+            td.classList.add("computed");
+            td.textContent = fmtMoney(row[f.key]) + " 元";
+          } else if (f.type === "computed-editable") {
+            td.contentEditable = "true";
+            td.classList.add("computed");
+            td.textContent = row[f.key] === undefined || row[f.key] === "" ? "" : row[f.key];
+            td.onblur = () => updateField(table, row.id, f.key, td.textContent.trim(), true);
+          } else if (f.type === "checkbox-auto") {
+            td.style.textAlign = "center";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = !!row[f.key];
+            cb.disabled = true;
+            cb.title = "會依「成交時間」是否有填自動勾選，不能手動點擊";
+            td.appendChild(cb);
+          } else {
+            td.contentEditable = "true";
+            td.textContent = row[f.key] === undefined || row[f.key] === "" ? "" : row[f.key];
+            td.onblur = () => updateField(table, row.id, f.key, td.textContent.trim(), f.type === "number");
+          }
+          tr.appendChild(td);
+        });
+        const delTd = document.createElement("td");
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn danger small";
+        delBtn.textContent = "刪除";
+        delBtn.onclick = () => deleteRow(table, row.id);
+        delTd.appendChild(delBtn);
+        tr.appendChild(delTd);
+        tbody.appendChild(tr);
+      });
+
+      renderFooter(table);
+    }
+
+    function renderFooter(table) {
+      if (table === "deposits") {
+        document.getElementById("total-deposits-twd").textContent = fmtMoney(sumField("deposits", "twd"));
+        document.getElementById("total-deposits-points").textContent = fmtMoney(sumField("deposits", "points"));
+      } else if (table === "listings") {
+        document.getElementById("total-listings-amount").textContent = fmtMoney(sumField("listings", "amount")) + " 億";
+      } else if (table === "sales") {
+        document.getElementById("total-sales-amount").textContent = fmtMoney(sumField("sales", "amount")) + " 億";
+        document.getElementById("total-sales-twd").textContent = fmtMoney(sumField("sales", "twd"));
+      }
+    }
+
+    function computeSummaryItems() {
+      const totalTwdSpent = sumField("deposits", "twd");
+      const totalPoints = sumField("deposits", "points");
+      const totalListedV = sumField("listings", "amount", r => r.listed === true);
+      const totalListedPaid = sumField("listings", "amount", r => r.listed === true && r.source === MP_SOURCES[0]);
+      const totalListedFree = sumField("listings", "amount", r => r.listed === true && r.source === MP_SOURCES[1]);
+      const totalSoldAmount = sumField("sales", "amount");
+      const totalSalesTwd = sumField("sales", "twd");
+      const netCost = totalTwdSpent - totalSalesTwd;
+      const avgCostPerYi = totalSoldAmount > 0 ? netCost / totalSoldAmount : null;
+      const avgSellRateTwdPerYi = totalSoldAmount > 0 ? totalSalesTwd / totalSoldAmount : null;
+      const inventory = totalListedV - totalSoldAmount;
+
+      return [
+        { label: "💸 總儲值花費（現金）", value: fmtMoney(totalTwdSpent) + " 元" },
+        { label: "🪙 總取得樂豆點", value: fmtMoney(totalPoints) + " 點" },
+        { label: "🏷️ 已成交楓幣總量", value: fmtMoney(totalListedV) + " 億" },
+        { label: "🎟️ 其中：樂豆點兌換", value: fmtMoney(totalListedPaid) + " 億" },
+        { label: "🎁 其中：VIP點數兌換(免費)", value: fmtMoney(totalListedFree) + " 億" },
+        { label: "💱 已賣出楓幣總量", value: fmtMoney(totalSoldAmount) + " 億" },
+        { label: "📦 推估庫存楓幣", value: fmtMoney(inventory) + " 億" },
+        { label: "💰 總賣幣收入", value: fmtMoney(totalSalesTwd) + " 元" },
+        { label: "✅ 淨成本（花費－收入）", value: fmtMoney(netCost) + " 元", highlight: true },
+        { label: "📐 平均每億楓幣成本", value: avgCostPerYi === null ? "尚無賣出紀錄" : fmtMoney(avgCostPerYi) + " 元/億" },
+        { label: "📈 平均賣幣單價", value: avgSellRateTwdPerYi === null ? "尚無賣出紀錄" : fmtMoney(avgSellRateTwdPerYi) + " 元/億" }
+      ];
+    }
+
+    function renderSummary() {
+      const items = computeSummaryItems();
+
+      const grid = document.getElementById("summaryGrid");
+      grid.innerHTML = items.map(it => `
+      <div class="summary-item${it.highlight ? " highlight" : ""}">
+        <div class="label">${it.label}</div>
+        <div class="value">${it.value}</div>
+      </div>
+    `).join("");
+
+      renderChart();
+    }
+
+    function buildCumulativeSeries() {
+      const spendByDate = {};
+      DATA.deposits.forEach(r => {
+        if (!r.date) return;
+        spendByDate[r.date] = (spendByDate[r.date] || 0) + (parseFloat(r.twd) || 0);
+      });
+      const recoveryByDate = {};
+      DATA.sales.forEach(r => {
+        if (!r.date) return;
+        const d = r.date.slice(0, 10);
+        recoveryByDate[d] = (recoveryByDate[d] || 0) + (parseFloat(r.twd) || 0);
+      });
+
+      const allDates = Array.from(new Set([...Object.keys(spendByDate), ...Object.keys(recoveryByDate)])).sort();
+
+      let cumSpend = 0, cumRecovery = 0;
+      const spendCum = [], recoveryCum = [];
+      allDates.forEach(d => {
+        cumSpend += spendByDate[d] || 0;
+        cumRecovery += recoveryByDate[d] || 0;
+        spendCum.push(cumSpend);
+        recoveryCum.push(cumRecovery);
+      });
+
+      const firstSaleDate = Object.keys(recoveryByDate).sort()[0] || null;
+
+      return { allDates, spendCum, recoveryCum, firstSaleDate };
+    }
+
+    function epochDay(dateStr) {
+      return Math.floor(new Date(dateStr + "T00:00:00").getTime() / 86400000);
+    }
+
+    function epochDayToStr(day) {
+      const d = new Date(day * 86400000);
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
+
+    let costChartInstance = null;
+
+    function renderChart() {
+      const canvas = document.getElementById("costChart");
+      const noteEl = document.getElementById("breakevenNote");
+      if (!canvas || !noteEl) return;
+
+      const { allDates, spendCum, recoveryCum, firstSaleDate } = buildCumulativeSeries();
+
+      if (allDates.length < 2) {
+        if (costChartInstance) { costChartInstance.destroy(); costChartInstance = null; }
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        noteEl.className = "breakeven-note";
+        noteEl.textContent = "資料還太少，至少要有兩個不同日期的儲值或賣幣紀錄才能畫出趨勢線。";
+        return;
+      }
+
+      if (typeof Chart === "undefined") {
+        noteEl.className = "breakeven-note";
+        noteEl.textContent = "圖表元件載入失敗，請確認網路連線後重新整理頁面再試一次。";
+        return;
+      }
+
+      const isDark = document.documentElement.classList.contains("dark-mode");
+      const gridColor = isDark ? "#334155" : "#e2e8f0";
+      const textColor = isDark ? "#cbd5e1" : "#334155";
+
+      const spendPoints = allDates.map((d, i) => ({ x: epochDay(d), y: spendCum[i] }));
+      const recoveryPoints = allDates.map((d, i) => ({ x: epochDay(d), y: recoveryCum[i] }));
+
+      if (costChartInstance) costChartInstance.destroy();
+      costChartInstance = new Chart(canvas.getContext("2d"), {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label: "累積花費(元)",
+              data: spendPoints,
+              borderColor: "#0284c7",
+              backgroundColor: "#0284c733",
+              stepped: "after",
+              pointRadius: 3
+            },
+            {
+              label: "累積回收(元)",
+              data: recoveryPoints,
+              borderColor: "#16a34a",
+              backgroundColor: "#16a34a33",
+              stepped: "after",
+              pointRadius: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "nearest", intersect: false },
+          plugins: {
+            legend: { labels: { color: textColor } },
+            tooltip: {
+              callbacks: {
+                title: items => epochDayToStr(items[0].parsed.x)
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: "linear",
+              ticks: { color: textColor, callback: v => epochDayToStr(v) },
+              grid: { color: gridColor }
+            },
+            y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+          }
+        }
+      });
+
+      renderBreakevenNote(allDates, spendCum, recoveryCum, firstSaleDate, noteEl);
+    }
+
+    function renderBreakevenNote(allDates, spendCum, recoveryCum, firstSaleDate, noteEl) {
+      // 檢查是否已經打平：找出第一個「累積回收 >= 累積花費」的日期
+      let hitIndex = -1;
+      for (let i = 0; i < allDates.length; i++) {
+        if (recoveryCum[i] >= spendCum[i] && spendCum[i] > 0) { hitIndex = i; break; }
+      }
+
+      if (hitIndex !== -1) {
+        noteEl.className = "breakeven-note hit";
+        noteEl.textContent = `🎉 已經在 ${allDates[hitIndex]} 打平成本，之後就是淨賺囉！`;
+        return;
+      }
+
+      const lastSpend = spendCum[spendCum.length - 1];
+      const lastRecovery = recoveryCum[recoveryCum.length - 1];
+      const gap = lastSpend - lastRecovery;
+
+      if (!firstSaleDate || lastRecovery <= 0) {
+        noteEl.className = "breakeven-note";
+        noteEl.textContent = `目前累積花費 ${fmtMoney(lastSpend)} 元，還沒有賣幣收入，暫時無法估算打平時間。`;
+        return;
+      }
+
+      const dayMs = 24 * 60 * 60 * 1000;
+      const firstSaleTime = new Date(firstSaleDate + "T00:00:00").getTime();
+      const lastDate = allDates[allDates.length - 1];
+      const lastTime = new Date(lastDate + "T00:00:00").getTime();
+      const daysSinceFirstSale = Math.max(1, Math.round((lastTime - firstSaleTime) / dayMs) + 1);
+      const avgDailyRecovery = lastRecovery / daysSinceFirstSale;
+
+      if (avgDailyRecovery <= 0) {
+        noteEl.className = "breakeven-note";
+        noteEl.textContent = `目前還差 ${fmtMoney(gap)} 元才打平，賣幣收入速度太慢，暫時無法估算打平時間。`;
+        return;
+      }
+
+      const estDays = Math.ceil(gap / avgDailyRecovery);
+      const estDate = new Date(lastTime + estDays * dayMs);
+      const estDateStr = `${estDate.getFullYear()}-${pad2(estDate.getMonth() + 1)}-${pad2(estDate.getDate())}`;
+
+      noteEl.className = "breakeven-note";
+      noteEl.textContent = `目前還差 ${fmtMoney(gap)} 元才打平。以目前平均每天回收約 ${fmtMoney(avgDailyRecovery)} 元估算，大概還要 ${estDays} 天，預估 ${estDateStr} 左右可以打平（僅為簡單線性推估，實際會依賣幣速度變化）。`;
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tab));
+      if (tab === "summary") renderSummary();
+    }
+
+    function exportData() {
+      const blob = new Blob([JSON.stringify(DATA, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = todayDate();
+      a.href = url;
+      a.download = `maple-ledger-backup-${today}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    const SHEET_LABELS = {
+      deposits: { name: "儲值紀錄", fields: { date: "日期", method: "儲值方式", twd: "花費台幣", points: "取得樂豆點", note: "備註" } },
+      listings: { name: "楓幣掛收紀錄", fields: { date: "日期", amount: "掛收楓幣(億)", rate: "楓點比值(楓點:1億)", source: "楓點來源", server: "伺服器", listed: "已成交", foundTime: "成交時間", note: "備註" } },
+      sales: { name: "賣幣交易紀錄", fields: { date: "日期時間", amount: "賣出楓幣(億)", rate: "賣幣比值(1台幣:萬楓幣)", server: "伺服器", twd: "回收台幣", note: "買家/備註" } }
+    };
+
+    function buildSheetRows(table) {
+      const fields = SHEET_LABELS[table].fields;
+      const keys = Object.keys(fields);
+      return DATA[table].map(row => {
+        const obj = {};
+        keys.forEach(k => { obj[fields[k]] = row[k] === undefined ? "" : row[k]; });
+        return obj;
+      });
+    }
+
+    function exportExcel() {
+      if (typeof XLSX === "undefined") {
+        alert("Excel 匯出功能需要連上網路載入元件，請確認網路連線後重新整理頁面再試一次。");
+        return;
+      }
+      const wb = XLSX.utils.book_new();
+
+      ["deposits", "listings", "sales"].forEach(table => {
+        const rows = buildSheetRows(table);
+        const fields = SHEET_LABELS[table].fields;
+        const ws = rows.length
+          ? XLSX.utils.json_to_sheet(rows)
+          : XLSX.utils.json_to_sheet([], { header: Object.values(fields) });
+        XLSX.utils.book_append_sheet(wb, ws, SHEET_LABELS[table].name);
+      });
+
+      const summaryRows = computeSummaryItems().map(it => ({
+        "項目": it.label.replace(/^[^\u4e00-\u9fa5]+/, "").trim(),
+        "數值": it.value
+      }));
+      const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "成本估算摘要");
+
+      XLSX.writeFile(wb, `maple-ledger-${todayDate()}.xlsx`);
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          if (!confirm("匯入會覆蓋目前瀏覽器裡的所有紀錄，確定要繼續嗎？")) return;
+          ["deposits", "listings", "sales"].forEach(table => {
+            DATA[table] = Array.isArray(parsed[table]) ? parsed[table] : [];
+            saveTable(table);
+            renderTable(table);
+          });
+          renderSummary();
+          alert("匯入完成！");
+        } catch (e) {
+          alert("這個檔案格式讀不出來，請確認是本頁面匯出的備份檔。");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    }
+
+    // ---- 深色模式（跟計算機頁一致的邏輯） ----
+    (function applyThemeImmediately() {
+      const savedTheme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add("dark-mode");
+      } else {
+        document.documentElement.classList.remove("dark-mode");
+      }
+    })();
+
+    function updateThemeButton(isDark) {
+      const iconEl = document.getElementById("themeIcon");
+      const textEl = document.getElementById("themeText");
+      if (iconEl && textEl) {
+        iconEl.innerText = isDark ? "☀️" : "🌙";
+        textEl.innerText = isDark ? "淺色模式" : "深色模式";
+      }
+    }
+
+    window.toggleTheme = function () {
+      const isDark = document.documentElement.classList.toggle("dark-mode");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+      updateThemeButton(isDark);
+      if (document.getElementById("panel-summary").classList.contains("active")) renderChart();
+    };
+
+    document.addEventListener("DOMContentLoaded", function () {
+      updateThemeButton(document.documentElement.classList.contains("dark-mode"));
+      loadAll();
+      renderTable("deposits");
+      renderTable("listings");
+      renderTable("sales");
+      renderSummary();
+    });
+  </script>
+
+</body>
+
+</html>
