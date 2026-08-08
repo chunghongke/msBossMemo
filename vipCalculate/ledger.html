@@ -359,6 +359,14 @@
       background: var(--result-bg);
       border-radius: 8px;
       padding: 12px;
+      height: 280px;
+      position: relative;
+    }
+
+    @media (max-width: 640px) {
+      .chart-wrap {
+        height: 220px;
+      }
     }
 
     .breakeven-note {
@@ -542,7 +550,7 @@
           <h3>📈 累積花費 vs 累積回收趨勢</h3>
         </div>
         <div class="chart-wrap">
-          <canvas id="costChart" height="300"></canvas>
+          <canvas id="costChart"></canvas>
         </div>
         <div id="breakevenNote" class="breakeven-note"></div>
       </div>
@@ -826,43 +834,42 @@
     }
 
     function buildCumulativeSeries() {
-      const spendByDate = {};
-      DATA.deposits.forEach(r => {
-        if (!r.date) return;
-        const d = (r.date || "").slice(0, 10);
-        if (!d) return;
-        spendByDate[d] = (spendByDate[d] || 0) + (parseFloat(r.twd) || 0);
-      });
-      const recoveryByDate = {};
-      DATA.sales.forEach(r => {
-        if (!r.date) return;
-        const d = r.date.slice(0, 10);
-        recoveryByDate[d] = (recoveryByDate[d] || 0) + (parseFloat(r.twd) || 0);
-      });
+      const spendEvents = DATA.deposits
+        .filter(r => r.date)
+        .map(r => ({ x: new Date(r.date).getTime(), amt: parseFloat(r.twd) || 0 }))
+        .sort((a, b) => a.x - b.x);
 
-      const allDates = Array.from(new Set([...Object.keys(spendByDate), ...Object.keys(recoveryByDate)])).sort();
+      const recoveryEvents = DATA.sales
+        .filter(r => r.date)
+        .map(r => ({ x: new Date(r.date).getTime(), amt: parseFloat(r.twd) || 0 }))
+        .sort((a, b) => a.x - b.x);
 
-      let cumSpend = 0, cumRecovery = 0;
-      const spendCum = [], recoveryCum = [];
-      allDates.forEach(d => {
-        cumSpend += spendByDate[d] || 0;
-        cumRecovery += recoveryByDate[d] || 0;
-        spendCum.push(cumSpend);
-        recoveryCum.push(cumRecovery);
-      });
+      let cum = 0;
+      const spendPoints = spendEvents.map(e => { cum += e.amt; return { x: e.x, y: cum }; });
+      cum = 0;
+      const recoveryPoints = recoveryEvents.map(e => { cum += e.amt; return { x: e.x, y: cum }; });
 
-      const firstSaleDate = Object.keys(recoveryByDate).sort()[0] || null;
+      const firstSaleX = recoveryEvents.length ? recoveryEvents[0].x : null;
 
-      return { allDates, spendCum, recoveryCum, firstSaleDate };
+      return { spendPoints, recoveryPoints, firstSaleX };
     }
 
-    function epochDay(dateStr) {
-      return Math.floor(new Date(dateStr + "T00:00:00").getTime() / 86400000);
-    }
-
-    function epochDayToStr(day) {
-      const d = new Date(day * 86400000);
+    function msToDateStr(ms) {
+      const d = new Date(ms);
       return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
+
+    function msToDateTimeStr(ms) {
+      const d = new Date(ms);
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+
+    function niceTickValues(min, max, count) {
+      if (!isFinite(min) || !isFinite(max) || min === max) return [min];
+      const step = (max - min) / (count - 1);
+      const ticks = [];
+      for (let i = 0; i < count; i++) ticks.push(min + step * i);
+      return ticks;
     }
 
     let costChartInstance = null;
@@ -872,14 +879,16 @@
       const noteEl = document.getElementById("breakevenNote");
       if (!canvas || !noteEl) return;
 
-      const { allDates, spendCum, recoveryCum, firstSaleDate } = buildCumulativeSeries();
+      const { spendPoints, recoveryPoints, firstSaleX } = buildCumulativeSeries();
 
-      if (allDates.length < 2) {
+      if (spendPoints.length + recoveryPoints.length < 2) {
         if (costChartInstance) { costChartInstance.destroy(); costChartInstance = null; }
+        const existingEmpty = typeof Chart !== "undefined" && Chart.getChart ? Chart.getChart(canvas) : null;
+        if (existingEmpty) existingEmpty.destroy();
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         noteEl.className = "breakeven-note";
-        noteEl.textContent = "資料還太少，至少要有兩個不同日期的儲值或賣幣紀錄才能畫出趨勢線。";
+        noteEl.textContent = "資料還太少，至少要有兩筆儲值或賣幣紀錄才能畫出趨勢線。";
         return;
       }
 
@@ -893,85 +902,133 @@
       const gridColor = isDark ? "#334155" : "#e2e8f0";
       const textColor = isDark ? "#cbd5e1" : "#334155";
 
-      const spendPoints = allDates.map((d, i) => ({ x: epochDay(d), y: spendCum[i] }));
-      const recoveryPoints = allDates.map((d, i) => ({ x: epochDay(d), y: recoveryCum[i] }));
+      const allX = [...spendPoints.map(p => p.x), ...recoveryPoints.map(p => p.x)];
+      const minX = Math.min(...allX);
+      const maxX = Math.max(...allX);
+      const rangeDays = (maxX - minX) / 86400000;
+      const tickFormatter = rangeDays > 3 ? msToDateStr : msToDateTimeStr;
+      const tickValues = niceTickValues(minX, maxX, 6);
 
-      if (costChartInstance) costChartInstance.destroy();
-      costChartInstance = new Chart(canvas.getContext("2d"), {
-        type: "line",
-        data: {
-          datasets: [
-            {
-              label: "累積花費(元)",
-              data: spendPoints,
-              borderColor: "#0284c7",
-              backgroundColor: "#0284c733",
-              stepped: "after",
-              pointRadius: 3
-            },
-            {
-              label: "累積回收(元)",
-              data: recoveryPoints,
-              borderColor: "#16a34a",
-              backgroundColor: "#16a34a33",
-              stepped: "after",
-              pointRadius: 3
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          interaction: { mode: "nearest", intersect: false },
-          plugins: {
-            legend: { labels: { color: textColor } },
-            tooltip: {
-              callbacks: {
-                title: items => epochDayToStr(items[0].parsed.x)
+      // 徹底清掉這個 canvas 上任何殘留的圖表實例，避免「Canvas is already in use」
+      if (costChartInstance) { costChartInstance.destroy(); costChartInstance = null; }
+      const existingChart = Chart.getChart ? Chart.getChart(canvas) : null;
+      if (existingChart) existingChart.destroy();
+
+      try {
+        costChartInstance = new Chart(canvas.getContext("2d"), {
+          type: "line",
+          data: {
+            datasets: [
+              {
+                label: "累積花費(元)",
+                data: spendPoints,
+                borderColor: "#0284c7",
+                backgroundColor: "#0284c733",
+                stepped: "after",
+                pointRadius: 3
+              },
+              {
+                label: "累積回收(元)",
+                data: recoveryPoints,
+                borderColor: "#16a34a",
+                backgroundColor: "#16a34a33",
+                stepped: "after",
+                pointRadius: 3
               }
-            }
+            ]
           },
-          scales: {
-            x: {
-              type: "linear",
-              ticks: { color: textColor, callback: v => epochDayToStr(v) },
-              grid: { color: gridColor }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "nearest", intersect: false },
+            plugins: {
+              legend: { labels: { color: textColor } },
+              tooltip: {
+                callbacks: {
+                  title: items => msToDateTimeStr(items[0].parsed.x)
+                }
+              }
             },
-            y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+            scales: {
+              x: {
+                type: "linear",
+                min: minX,
+                max: maxX,
+                ticks: {
+                  color: textColor,
+                  maxRotation: 0,
+                  callback: v => tickFormatter(v)
+                },
+                afterBuildTicks: axis => {
+                  axis.ticks = tickValues.map(v => ({ value: v }));
+                },
+                grid: { color: gridColor }
+              },
+              y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+            }
           }
-        }
-      });
-
-      renderBreakevenNote(allDates, spendCum, recoveryCum, firstSaleDate, noteEl);
-    }
-
-    function renderBreakevenNote(allDates, spendCum, recoveryCum, firstSaleDate, noteEl) {
-      // 檢查是否已經打平：找出第一個「累積回收 >= 累積花費」的日期
-      let hitIndex = -1;
-      for (let i = 0; i < allDates.length; i++) {
-        if (recoveryCum[i] >= spendCum[i] && spendCum[i] > 0) { hitIndex = i; break; }
-      }
-
-      if (hitIndex !== -1) {
-        noteEl.className = "breakeven-note hit";
-        noteEl.textContent = `🎉 已經在 ${allDates[hitIndex]} 打平成本，之後就是淨賺囉！`;
+        });
+      } catch (err) {
+        console.error("Chart render failed:", err);
+        costChartInstance = null;
+        noteEl.className = "breakeven-note";
+        noteEl.textContent = "圖表繪製時發生錯誤，請重新整理頁面再試一次。";
         return;
       }
 
-      const lastSpend = spendCum[spendCum.length - 1];
-      const lastRecovery = recoveryCum[recoveryCum.length - 1];
+      renderBreakevenNote(spendPoints, recoveryPoints, firstSaleX, noteEl);
+    }
+
+    function cumAtOrBefore(points, x) {
+      let val = 0;
+      for (const p of points) {
+        if (p.x <= x) val = p.y; else break;
+      }
+      return val;
+    }
+
+    function renderBreakevenNote(spendPoints, recoveryPoints, firstSaleX, noteEl) {
+      if (!spendPoints.length) {
+        noteEl.className = "breakeven-note";
+        noteEl.textContent = "還沒有儲值紀錄，暫時無法估算打平時間。";
+        return;
+      }
+      if (!recoveryPoints.length) {
+        const lastSpend = spendPoints[spendPoints.length - 1].y;
+        noteEl.className = "breakeven-note";
+        noteEl.textContent = `目前累積花費 ${fmtMoney(lastSpend)} 元，還沒有賣幣收入，暫時無法估算打平時間。`;
+        return;
+      }
+
+      // 合併所有事件時間點，用階梯值（當下最新的累積數字）逐點檢查是否已經交叉
+      const allX = Array.from(new Set([...spendPoints.map(p => p.x), ...recoveryPoints.map(p => p.x)])).sort((a, b) => a - b);
+
+      let hitX = null;
+      for (const x of allX) {
+        const s = cumAtOrBefore(spendPoints, x);
+        const r = cumAtOrBefore(recoveryPoints, x);
+        if (s > 0 && r >= s) { hitX = x; break; }
+      }
+
+      if (hitX !== null) {
+        noteEl.className = "breakeven-note hit";
+        noteEl.textContent = `🎉 已經在 ${msToDateTimeStr(hitX)} 打平成本，之後就是淨賺囉！`;
+        return;
+      }
+
+      const lastSpend = spendPoints[spendPoints.length - 1].y;
+      const lastRecovery = recoveryPoints[recoveryPoints.length - 1].y;
       const gap = lastSpend - lastRecovery;
 
-      if (!firstSaleDate || lastRecovery <= 0) {
+      if (lastRecovery <= 0) {
         noteEl.className = "breakeven-note";
         noteEl.textContent = `目前累積花費 ${fmtMoney(lastSpend)} 元，還沒有賣幣收入，暫時無法估算打平時間。`;
         return;
       }
 
       const dayMs = 24 * 60 * 60 * 1000;
-      const firstSaleTime = new Date(firstSaleDate + "T00:00:00").getTime();
-      const lastDate = allDates[allDates.length - 1];
-      const lastTime = new Date(lastDate + "T00:00:00").getTime();
-      const daysSinceFirstSale = Math.max(1, Math.round((lastTime - firstSaleTime) / dayMs) + 1);
+      const lastX = Math.max(spendPoints[spendPoints.length - 1].x, recoveryPoints[recoveryPoints.length - 1].x);
+      const daysSinceFirstSale = Math.max(1, (lastX - firstSaleX) / dayMs);
       const avgDailyRecovery = lastRecovery / daysSinceFirstSale;
 
       if (avgDailyRecovery <= 0) {
@@ -981,8 +1038,7 @@
       }
 
       const estDays = Math.ceil(gap / avgDailyRecovery);
-      const estDate = new Date(lastTime + estDays * dayMs);
-      const estDateStr = `${estDate.getFullYear()}-${pad2(estDate.getMonth() + 1)}-${pad2(estDate.getDate())}`;
+      const estDateStr = msToDateStr(lastX + estDays * dayMs);
 
       noteEl.className = "breakeven-note";
       noteEl.textContent = `目前還差 ${fmtMoney(gap)} 元才打平。以目前平均每天回收約 ${fmtMoney(avgDailyRecovery)} 元估算，大概還要 ${estDays} 天，預估 ${estDateStr} 左右可以打平（僅為簡單線性推估，實際會依賣幣速度變化）。`;
@@ -1057,19 +1113,21 @@
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
+        let parsed;
         try {
-          const parsed = JSON.parse(reader.result);
-          if (!confirm("匯入會覆蓋目前瀏覽器裡的所有紀錄，確定要繼續嗎？")) return;
-          ["deposits", "listings", "sales"].forEach(table => {
-            DATA[table] = Array.isArray(parsed[table]) ? parsed[table] : [];
-            saveTable(table);
-            renderTable(table);
-          });
-          renderSummary();
-          alert("匯入完成！");
+          parsed = JSON.parse(reader.result);
         } catch (e) {
           alert("這個檔案格式讀不出來，請確認是本頁面匯出的備份檔。");
+          return;
         }
+        if (!confirm("匯入會覆蓋目前瀏覽器裡的所有紀錄，確定要繼續嗎？")) return;
+        ["deposits", "listings", "sales"].forEach(table => {
+          DATA[table] = Array.isArray(parsed[table]) ? parsed[table] : [];
+          saveTable(table);
+          renderTable(table);
+        });
+        renderSummary();
+        alert("匯入完成！");
       };
       reader.readAsText(file);
       event.target.value = "";
