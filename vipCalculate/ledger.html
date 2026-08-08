@@ -457,7 +457,7 @@
         <table>
           <thead>
             <tr>
-              <th style="min-width:120px">日期</th>
+              <th style="min-width:170px">日期時間</th>
               <th style="min-width:100px">掛收楓幣(億)</th>
               <th style="min-width:110px">楓點比值(楓點:1億)</th>
               <th style="min-width:130px">楓點來源</th>
@@ -600,7 +600,7 @@
         { key: "note", type: "text", default: () => "" }
       ],
       listings: [
-        { key: "date", type: "date", default: () => todayDate() },
+        { key: "date", type: "datetime-local", default: () => nowDateTimeLocal() },
         { key: "amount", type: "number", default: () => 1000 },
         { key: "rate", type: "select", options: MP_RATIOS, default: () => "4" },
         { key: "source", type: "select", options: MP_SOURCES, default: () => MP_SOURCES[0] },
@@ -999,18 +999,28 @@
 
     const SHEET_LABELS = {
       deposits: { name: "儲值紀錄", fields: { date: "日期", method: "儲值方式", twd: "花費台幣", points: "取得樂豆點", note: "備註" } },
-      listings: { name: "楓幣掛收紀錄", fields: { date: "日期", amount: "掛收楓幣(億)", rate: "楓點比值(楓點:1億)", source: "楓點來源", server: "伺服器", listed: "已成交", foundTime: "成交時間", note: "備註" } },
+      listings: { name: "楓幣掛收紀錄", fields: { date: "日期時間", amount: "掛收楓幣(億)", rate: "楓點比值(楓點:1億)", source: "楓點來源", server: "伺服器", listed: "已成交", foundTime: "成交時間", note: "備註" } },
       sales: { name: "賣幣交易紀錄", fields: { date: "日期時間", amount: "賣出楓幣(億)", rate: "賣幣比值(1台幣:萬楓幣)", server: "伺服器", twd: "回收台幣", note: "買家/備註" } }
     };
 
-    function buildSheetRows(table) {
-      const fields = SHEET_LABELS[table].fields;
-      const keys = Object.keys(fields);
-      return DATA[table].map(row => {
-        const obj = {};
-        keys.forEach(k => { obj[fields[k]] = row[k] === undefined ? "" : row[k]; });
-        return obj;
+    function formatCellValue(table, key, value) {
+      if (table === "listings" && key === "listed") return value === true ? "V" : "";
+      return value === undefined ? "" : value;
+    }
+
+    function buildCombinedSheetAOA() {
+      const aoa = [];
+      ["deposits", "listings", "sales"].forEach(table => {
+        const label = SHEET_LABELS[table];
+        const keys = Object.keys(label.fields);
+        aoa.push([label.name]);
+        aoa.push(Object.values(label.fields));
+        DATA[table].forEach(row => {
+          aoa.push(keys.map(k => formatCellValue(table, k, row[k])));
+        });
+        aoa.push([]);
       });
+      return aoa;
     }
 
     function exportExcel() {
@@ -1020,14 +1030,9 @@
       }
       const wb = XLSX.utils.book_new();
 
-      ["deposits", "listings", "sales"].forEach(table => {
-        const rows = buildSheetRows(table);
-        const fields = SHEET_LABELS[table].fields;
-        const ws = rows.length
-          ? XLSX.utils.json_to_sheet(rows)
-          : XLSX.utils.json_to_sheet([], { header: Object.values(fields) });
-        XLSX.utils.book_append_sheet(wb, ws, SHEET_LABELS[table].name);
-      });
+      const ws = XLSX.utils.aoa_to_sheet(buildCombinedSheetAOA());
+      ws["!cols"] = [{ wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, "紀錄");
 
       const summaryRows = computeSummaryItems().map(it => ({
         "項目": it.label.replace(/^[^\u4e00-\u9fa5]+/, "").trim(),
