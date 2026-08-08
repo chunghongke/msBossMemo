@@ -280,6 +280,12 @@
       outline: 2px solid #0284c7;
     }
 
+    html.dark-mode td input[type="date"]::-webkit-calendar-picker-indicator,
+    html.dark-mode td input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+      filter: invert(1) brightness(1.3);
+      cursor: pointer;
+    }
+
     tfoot td {
       background: var(--result-bg);
       font-weight: bold;
@@ -422,7 +428,7 @@
         <table>
           <thead>
             <tr>
-              <th style="min-width:120px">日期</th>
+              <th style="min-width:170px">日期時間</th>
               <th style="min-width:110px">儲值方式</th>
               <th style="min-width:100px">花費台幣</th>
               <th style="min-width:100px">取得樂豆點</th>
@@ -593,7 +599,7 @@
 
     const SCHEMAS = {
       deposits: [
-        { key: "date", type: "date", default: () => todayDate() },
+        { key: "date", type: "datetime-local", default: () => nowDateTimeLocal() },
         { key: "method", type: "select", options: ["折扣點數卡", "轉帳"], default: () => "轉帳" },
         { key: "twd", type: "number", default: () => 5000 },
         { key: "points", type: "computed-editable", default: () => calcDepositPoints(5000, "轉帳") },
@@ -823,7 +829,9 @@
       const spendByDate = {};
       DATA.deposits.forEach(r => {
         if (!r.date) return;
-        spendByDate[r.date] = (spendByDate[r.date] || 0) + (parseFloat(r.twd) || 0);
+        const d = (r.date || "").slice(0, 10);
+        if (!d) return;
+        spendByDate[d] = (spendByDate[d] || 0) + (parseFloat(r.twd) || 0);
       });
       const recoveryByDate = {};
       DATA.sales.forEach(r => {
@@ -998,7 +1006,7 @@
     }
 
     const SHEET_LABELS = {
-      deposits: { name: "儲值紀錄", fields: { date: "日期", method: "儲值方式", twd: "花費台幣", points: "取得樂豆點", note: "備註" } },
+      deposits: { name: "儲值紀錄", fields: { date: "日期時間", method: "儲值方式", twd: "花費台幣", points: "取得樂豆點", note: "備註" } },
       listings: { name: "楓幣掛收紀錄", fields: { date: "日期時間", amount: "掛收楓幣(億)", rate: "楓點比值(楓點:1億)", source: "楓點來源", server: "伺服器", listed: "已成交", foundTime: "成交時間", note: "備註" } },
       sales: { name: "賣幣交易紀錄", fields: { date: "日期時間", amount: "賣出楓幣(億)", rate: "賣幣比值(1台幣:萬楓幣)", server: "伺服器", twd: "回收台幣", note: "買家/備註" } }
     };
