@@ -391,6 +391,7 @@
       min-height: 58px;
       box-sizing: border-box;
       text-align: center;
+      position: relative;
     }
 
     .boss-cell.long-press-active {
@@ -448,6 +449,97 @@
     .boss-cell.completed .party-badge {
       background: rgba(21, 128, 61, 0.12);
       color: var(--text-completed);
+    }
+
+    /* 艾里溫碎片：份數小標籤（貼在 boss-cell 右上角，跟主格子的完成切換分開操作） */
+    .shard-tag {
+      position: absolute;
+      top: -8px;
+      right: -6px;
+      background: #0ea5e9;
+      color: #fff;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 10px;
+      line-height: 1.2;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+      cursor: pointer;
+      white-space: nowrap;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .shard-icon {
+      width: 11px;
+      height: 11px;
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0;
+      object-fit: contain;
+    }
+    .crystal-icon {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0;
+      object-fit: contain;
+    }
+    .shard-tag.unpicked {
+      background: #64748b;
+    }
+    .shard-tag:hover {
+      filter: brightness(1.1);
+    }
+    .shard-tag.static {
+      background: #15803d;
+      cursor: default;
+    }
+    .shard-tag.static:hover {
+      filter: none;
+    }
+
+    /* 艾里溫碎片：份數選擇彈窗內的份數按鈕 */
+    .shard-share-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 14px 0;
+    }
+    .shard-share-btn {
+      flex: 1 1 60px;
+      padding: 10px 6px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-not-completed);
+      color: var(--text-not-completed);
+      cursor: pointer;
+      text-align: center;
+      font-size: 13px;
+      transition: all 0.12s ease-in-out;
+    }
+    .shard-share-btn .shard-share-amount {
+      display: block;
+      font-size: 11px;
+      font-weight: normal;
+      margin-top: 2px;
+      opacity: 0.8;
+    }
+    .shard-share-btn:hover {
+      border-color: #0ea5e9;
+    }
+    .shard-share-btn.selected {
+      background: #0ea5e9;
+      border-color: #0ea5e9;
+      color: #fff;
+      font-weight: bold;
+    }
+    .shard-last-week-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
     }
 
     /* ==========================================
@@ -898,7 +990,14 @@
     if (window.store.lastResetWeekKey !== currentWeekKey) {
       if (window.store.weeklyRecords) {
         Object.values(window.store.weeklyRecords).forEach(rec => {
-          if (rec) rec.isCompleted = false;
+          if (!rec) return;
+          // 💡 艾里溫碎片：如果上週有完成且有選份數（包含選 0 份），先存成 lastWeekShardShares 當提示，
+          // 再把本週的選擇清空，讓這週要重新選一次（避免沿用上週的份數造成誤判）
+          if (rec.isCompleted && rec.shardShares !== null && rec.shardShares !== undefined) {
+            rec.lastWeekShardShares = rec.shardShares;
+          }
+          rec.shardShares = null;
+          rec.isCompleted = false;
         });
       }
       window.store.lastResetWeekKey = currentWeekKey;
@@ -1052,6 +1151,61 @@
     return { earned, expected };
   }
 
+  // 把艾里溫碎片數量格式化成整數（碎片數量通常不大，不需要像結晶錢那樣換算成萬/億）
+  function formatShardNumber(rawValue) {
+    return Math.round(rawValue).toLocaleString("zh-TW");
+  }
+
+  // 計算角色本週的艾里溫碎片：
+  // - 碎片的「每份」固定是 boss.erionVestiges / boss.maxPartySize（跟實際到場人數無關，是 BOSS 固定掉落的份數）
+  // - 單人隊伍（實際到場只有自己）：視為撿走全部（maxPartySize 份），跟結晶錢一樣自動算滿額
+  // - 多人隊伍：預計金額固定用「1 份」當基準（因為實際會撿幾份要等使用者手動選擇），
+  //   已完成的部分則改用使用者實際選擇的份數（record.shardShares），還沒選就先當 1 份
+  function calculateCharacterShard(c) {
+    let earned = 0;
+    let expected = 0;
+
+    window.config.bosses.forEach(boss => {
+      if (!boss.erionVestiges) return;
+
+      const inBossIds = !c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(boss.id);
+      const inResetBossIds = c.resetBossIds && c.resetBossIds.includes(boss.id);
+      if (!inBossIds && !inResetBossIds) return;
+
+      const maxEntries = boss.allowReset ? 2 : 1;
+      const maxPartySize = boss.maxPartySize || 1;
+      const unitShare = boss.erionVestiges / maxPartySize;
+
+      for (let entry = 1; entry <= maxEntries; entry++) {
+        if (entry === 1 && !inBossIds) continue;
+        if (entry === 2 && !inResetBossIds) continue;
+
+        const recordKey = `rec_${c.id}_${boss.id}_${entry}`;
+        const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
+        const team = record && window.store.teams ? window.store.teams[record.teamId] : null;
+        if (!record || !team) continue;
+
+        const rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: entry }));
+        const validMembers = rawMembers.filter(m => {
+          if (!m.charId.startsWith("guest_")) return true;
+          return window.store.guests && window.store.guests.some(g => g.id === m.charId);
+        });
+
+        const isSolo = validMembers.length <= 1;
+
+        expected += isSolo ? boss.erionVestiges : unitShare;
+
+        if (record.isCompleted) {
+          const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
+          const shares = isSolo ? maxPartySize : (hasChosen ? record.shardShares : 1);
+          earned += unitShare * shares;
+        }
+      }
+    });
+
+    return { earned, expected };
+  }
+
   // 記錄目前每個 boss-cell 的畫面位置（key 為 recordKey），供重繪後做滑動動畫比對用
   function captureBossCellPositions(container) {
     const positions = new Map();
@@ -1147,6 +1301,7 @@
 
       // 先算出每個角色的結晶錢，順便加總成這個玩家的總計（header 要用到，所以要在 header 組出來之前先算）
       const crystalByCharId = new Map();
+      const shardByCharId = new Map();
       let playerEarnedTotal = 0;
       let playerExpectedTotal = 0;
       characters.forEach(c => {
@@ -1154,6 +1309,8 @@
         crystalByCharId.set(c.id, crystal);
         playerEarnedTotal += crystal.earned;
         playerExpectedTotal += crystal.expected;
+
+        shardByCharId.set(c.id, calculateCharacterShard(c));
       });
 
       let playerHTML = `
@@ -1166,7 +1323,7 @@
             <span>
               <span class="player-avatar-btn" onclick="event.stopPropagation(); openAvatarPickerModal('${p.name.replace(/'/g, "\\'")}')" title="點擊更換頭像">${p.avatarEmoji || '👤'}</span>
               玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}
-              ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px;">💎 ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
+              ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
             </span>
             <span class="collapse-icon" id="collapse-icon-${playerId}">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
           </div>
@@ -1186,6 +1343,7 @@
           let selectedBossCount = c.bossIds ? c.bossIds.length : 0;
           selectedBossCount += c.resetBossIds ? c.resetBossIds.length : 0;
           const charCrystal = crystalByCharId.get(c.id) || { earned: 0, expected: 0 };
+          const charShard = shardByCharId.get(c.id) || { earned: 0, expected: 0 };
 
           playerHTML += `
             <div class="character-card" draggable="true" data-char-id="${c.id}" data-player-name="${p.name}">
@@ -1214,7 +1372,8 @@
                           onmouseout="this.style.background='transparent'">
                     🖊️
                   </button>
-                  ${charCrystal.expected > 0 ? `<span style="font-size:11px; color:#eab308; font-weight:normal;">💎 ${formatCrystal(charCrystal.earned)} / ${formatCrystal(charCrystal.expected)}</span>` : ''}
+                  ${charCrystal.expected > 0 ? `<span style="font-size:11px; color:#eab308; font-weight:normal; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(charCrystal.earned)} / ${formatCrystal(charCrystal.expected)}</span>` : ''}
+                  ${charShard.expected > 0 ? `<span style="font-size:11px; color:#0ea5e9; font-weight:normal; display:inline-flex; align-items:center; gap:2px;" title="實際數量依你在多人 BOSS 選擇的撿取份數而定，這裡預計值先以「多人隊伍固定 1 份」估算"><img class="shard-icon" src="./shard-icon.png" alt="碎片" /> ${formatShardNumber(charShard.earned)} / ${formatShardNumber(charShard.expected)} 碎片</span>` : ''}
                 </div>
                 <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / ${selectedBossCount}</span>
               </div>
@@ -1294,6 +1453,32 @@
                     ? `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)\n🎟️ 此次數來自重置券：${boss.name}(同難度)`
                     : `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)`);
 
+                // 艾里溫碎片份數標籤：只有這隻 BOSS 有設定 erionVestiges 才顯示
+                // - 單人隊伍：固定顯示「滿額/滿額」（例如 6/6），純顯示不可點擊，因為單人自動全拿不用選
+                // - 多人隊伍：顯示目前選了幾份，點擊可以打開選擇彈窗（0 份也是合法選項，例如兩人隊伍這週 A 全撿、下週換 B 全撿）
+                const maxPartySize = boss.maxPartySize || 1;
+                const isSoloTeam = validMembers.length <= 1;
+                let shardTagHtml = "";
+                if (boss.erionVestiges) {
+                  if (isSoloTeam) {
+                    shardTagHtml = `
+                      <div class="shard-tag static" title="單人隊伍自動全拿">
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${maxPartySize}/${maxPartySize}份
+                      </div>
+                    `;
+                  } else {
+                    const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
+                    const currentShares = hasChosen ? record.shardShares : "?";
+                    shardTagHtml = `
+                      <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
+                          onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"
+                          title="設定這次撿取的艾里溫碎片份數">
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentShares}/${maxPartySize}份
+                      </div>
+                    `;
+                  }
+                }
+
                 bossCellEntries.push({
                   isCompleted,
                   html: `
@@ -1306,6 +1491,7 @@
                       ontouchend="handleCellTouchEnd(event)"
                       ontouchcancel="handleCellTouchEnd(event)"
                       title="${cellTitle}">
+                    ${shardTagHtml}
                     <div class="boss-name">${bossDisplayName}</div>
                     <div class="party-members">${displayTeamText}</div>
                   </div>
@@ -1483,6 +1669,69 @@
 
     saveStoreToCloud();
   }
+
+  // ==================== 艾里溫碎片：份數選擇彈窗 ====================
+  let editingShardRecordKey = null;
+
+  window.openShardShareModal = function(recordKey) {
+    const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
+    if (!record) return;
+
+    const boss = window.config.bosses.find(b => b.id === record.bossId);
+    if (!boss || !boss.erionVestiges) return;
+
+    editingShardRecordKey = recordKey;
+    const maxPartySize = boss.maxPartySize || 1;
+    const unitShare = boss.erionVestiges / maxPartySize;
+
+    const titleEl = document.getElementById("shardShareTitle");
+    if (titleEl) titleEl.innerText = `🔹 ${boss.name} - 選擇這次撿取的艾里溫碎片份數`;
+
+    const hintEl = document.getElementById("shardLastWeekHint");
+    if (hintEl) {
+      if (record.lastWeekShardShares !== null && record.lastWeekShardShares !== undefined) {
+        hintEl.innerText = `💡 上週你在這隻 BOSS 撿了 ${record.lastWeekShardShares} 份，記得跟隊友喬好這週的份數～`;
+        hintEl.style.display = "block";
+      } else {
+        hintEl.style.display = "none";
+      }
+    }
+
+    const optionsContainer = document.getElementById("shardShareOptions");
+    if (optionsContainer) {
+      let html = "";
+      for (let i = 0; i <= maxPartySize; i++) {
+        const isSelected = record.shardShares === i;
+        const label = i === 0 ? "0 份（這次讓給隊友）" : `${i} 份`;
+        html += `
+          <div class="shard-share-btn ${isSelected ? 'selected' : ''}" onclick="selectShardShare(${i})">
+            ${label}
+            <span class="shard-share-amount">${formatShardNumber(unitShare * i)}</span>
+          </div>
+        `;
+      }
+      optionsContainer.innerHTML = html;
+    }
+
+    const modal = document.getElementById("shardShareModal");
+    if (modal) modal.style.display = "flex";
+  };
+
+  window.closeShardShareModal = function() {
+    const modal = document.getElementById("shardShareModal");
+    if (modal) modal.style.display = "none";
+    editingShardRecordKey = null;
+  };
+
+  window.selectShardShare = function(n) {
+    if (!editingShardRecordKey) return;
+    const record = window.store.weeklyRecords[editingShardRecordKey];
+    if (!record) return;
+
+    record.shardShares = n;
+    saveStoreToCloud();
+    window.closeShardShareModal();
+  };
 
   // ==================== Modal 與操控邏輯 (重點重構區) ====================
   let editingCharId = null;
@@ -2954,6 +3203,18 @@
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn btn-secondary" onclick="closeRenameCharModal()">取消</button>
         <button class="btn" onclick="submitRenameChar()">儲存名稱</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 艾里溫碎片：份數選擇 Modal -->
+  <div id="shardShareModal" class="modal" onclick="handleOverlayClick(event, closeShardShareModal)">
+    <div class="modal-content" style="max-width: 380px; text-align: left;">
+      <h3 id="shardShareTitle" style="margin-top: 0; margin-bottom: 8px; font-size: 16px;">🔹 選擇這次撿取的艾里溫碎片份數</h3>
+      <div id="shardLastWeekHint" class="shard-last-week-hint" style="display: none;"></div>
+      <div id="shardShareOptions" class="shard-share-options"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn btn-secondary" onclick="closeShardShareModal()">關閉</button>
       </div>
     </div>
   </div>
