@@ -1488,6 +1488,7 @@
   let editingCharId = null;
   let editingBossId = null;
   let editingEntry = 1;
+  let coveredByOtherTeams = new Set(); // 「現有隊伍快速加入」清單裡，屬於別隊（不是正在編輯這隊）的成員，這些人如果還沒被勾選，個別清單就不重複列出
 
   // 列出「這隻 BOSS 目前已經組好、還有空位」的隊伍，供快速一鍵加入（不分首刷/重置輪次）
   function renderExistingTeamsQuickJoin() {
@@ -1530,6 +1531,15 @@
       }).join("、");
 
       teamCards.push({ teamId, memberNames, count: members.length, disabled: isSelfInTeam || isFull, isSelfInTeam, isFull });
+    });
+
+    // 別隊（不是正在編輯這隊）的成員，個別角色清單要排除，避免跟這裡的快速加入按鈕重複列出
+    coveredByOtherTeams = new Set();
+    teamCards.forEach(t => {
+      if (t.isSelfInTeam) return; // 正在編輯的這隊，成員要留在下面的清單裡讓使用者能勾/取消
+      const team = window.store.teams[t.teamId];
+      const members = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: editingEntry }));
+      members.forEach(m => coveredByOtherTeams.add(`${m.charId}_${m.entryIndex}`));
     });
 
     if (teamCards.length === 0) {
@@ -1642,6 +1652,13 @@
           }
 
           const isChecked = isSelf || checkedKeys.includes(targetKey);
+
+          // 這個人已經被「別隊」的快速加入按鈕涵蓋到了，而且目前還沒被勾選，個別清單就不重複列出
+          // （已經勾選的人一律照常顯示，避免存檔時漏掉已經選取的成員）
+          if (!isSelf && !isChecked && coveredByOtherTeams.has(targetKey)) {
+            return;
+          }
+
           const labelStyle = isSelf 
             ? 'cursor: not-allowed; font-size: 13px; display: flex; align-items: center; gap: 6px; opacity: 0.6; font-weight: bold;' 
             : 'cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;';
