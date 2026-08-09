@@ -467,6 +467,21 @@
       cursor: pointer;
       white-space: nowrap;
       z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .shard-icon {
+      width: 11px;
+      height: 11px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .crystal-icon {
+      width: 12px;
+      height: 12px;
+      display: inline-block;
+      vertical-align: middle;
     }
     .shard-tag.unpicked {
       background: #64748b;
@@ -1304,7 +1319,7 @@
             <span>
               <span class="player-avatar-btn" onclick="event.stopPropagation(); openAvatarPickerModal('${p.name.replace(/'/g, "\\'")}')" title="點擊更換頭像">${p.avatarEmoji || '👤'}</span>
               玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}
-              ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px;">💎 ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
+              ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
             </span>
             <span class="collapse-icon" id="collapse-icon-${playerId}">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
           </div>
@@ -1353,8 +1368,8 @@
                           onmouseout="this.style.background='transparent'">
                     🖊️
                   </button>
-                  ${charCrystal.expected > 0 ? `<span style="font-size:11px; color:#eab308; font-weight:normal;">💎 ${formatCrystal(charCrystal.earned)} / ${formatCrystal(charCrystal.expected)}</span>` : ''}
-                  ${charShard.expected > 0 ? `<span style="font-size:11px; color:#0ea5e9; font-weight:normal;" title="實際數量依你在多人 BOSS 選擇的撿取份數而定，這裡預計值先以「多人隊伍固定 1 份」估算">🔹 ${formatShardNumber(charShard.earned)} / ${formatShardNumber(charShard.expected)} 碎片</span>` : ''}
+                  ${charCrystal.expected > 0 ? `<span style="font-size:11px; color:#eab308; font-weight:normal; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(charCrystal.earned)} / ${formatCrystal(charCrystal.expected)}</span>` : ''}
+                  ${charShard.expected > 0 ? `<span style="font-size:11px; color:#0ea5e9; font-weight:normal; display:inline-flex; align-items:center; gap:2px;" title="實際數量依你在多人 BOSS 選擇的撿取份數而定，這裡預計值先以「多人隊伍固定 1 份」估算"><img class="shard-icon" src="./shard-icon.png" alt="碎片" /> ${formatShardNumber(charShard.earned)} / ${formatShardNumber(charShard.expected)} 碎片</span>` : ''}
                 </div>
                 <span class="char-badge ${isFull ? 'full' : ''}">已完成 ${count} / ${selectedBossCount}</span>
               </div>
@@ -1444,7 +1459,7 @@
                   if (isSoloTeam) {
                     shardTagHtml = `
                       <div class="shard-tag static" title="單人隊伍自動全拿">
-                        🔹${maxPartySize}/${maxPartySize}份
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${maxPartySize}/${maxPartySize}份
                       </div>
                     `;
                   } else {
@@ -1454,7 +1469,7 @@
                       <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
                           onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"
                           title="設定這次撿取的艾里溫碎片份數">
-                        🔹${currentShares}/${maxPartySize}份
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentShares}/${maxPartySize}份
                       </div>
                     `;
                   }
