@@ -474,6 +474,13 @@
     .shard-tag:hover {
       filter: brightness(1.1);
     }
+    .shard-tag.static {
+      background: #15803d;
+      cursor: default;
+    }
+    .shard-tag.static:hover {
+      filter: none;
+    }
 
     /* 艾里溫碎片：份數選擇彈窗內的份數按鈕 */
     .shard-share-options {
@@ -965,9 +972,9 @@
       if (window.store.weeklyRecords) {
         Object.values(window.store.weeklyRecords).forEach(rec => {
           if (!rec) return;
-          // 💡 艾里溫碎片：如果上週有完成且有選份數，先存成 lastWeekShardShares 當提示，
+          // 💡 艾里溫碎片：如果上週有完成且有選份數（包含選 0 份），先存成 lastWeekShardShares 當提示，
           // 再把本週的選擇清空，讓這週要重新選一次（避免沿用上週的份數造成誤判）
-          if (rec.isCompleted && rec.shardShares) {
+          if (rec.isCompleted && rec.shardShares !== null && rec.shardShares !== undefined) {
             rec.lastWeekShardShares = rec.shardShares;
           }
           rec.shardShares = null;
@@ -1170,7 +1177,8 @@
         expected += isSolo ? boss.erionVestiges : unitShare;
 
         if (record.isCompleted) {
-          const shares = isSolo ? maxPartySize : (record.shardShares || 1);
+          const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
+          const shares = isSolo ? maxPartySize : (hasChosen ? record.shardShares : 1);
           earned += unitShare * shares;
         }
       }
@@ -1426,20 +1434,30 @@
                     ? `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)\n🎟️ 此次數來自重置券：${boss.name}(同難度)`
                     : `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)`);
 
-                // 艾里溫碎片份數標籤：只有這隻 BOSS 有設定 erionVestiges，而且是多人隊伍才需要手動選份數，
-                // 單人隊伍直接視為全拿（不用顯示標籤，跟結晶錢邏輯一樣自動算）
+                // 艾里溫碎片份數標籤：只有這隻 BOSS 有設定 erionVestiges 才顯示
+                // - 單人隊伍：固定顯示「滿額/滿額」（例如 6/6），純顯示不可點擊，因為單人自動全拿不用選
+                // - 多人隊伍：顯示目前選了幾份，點擊可以打開選擇彈窗（0 份也是合法選項，例如兩人隊伍這週 A 全撿、下週換 B 全撿）
                 const maxPartySize = boss.maxPartySize || 1;
                 const isSoloTeam = validMembers.length <= 1;
                 let shardTagHtml = "";
-                if (boss.erionVestiges && !isSoloTeam) {
-                  const currentShares = record.shardShares || null;
-                  shardTagHtml = `
-                    <div class="shard-tag ${currentShares ? '' : 'unpicked'}"
-                        onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"
-                        title="設定這次撿取的艾里溫碎片份數">
-                      🔹${currentShares || '?'}/${maxPartySize}份
-                    </div>
-                  `;
+                if (boss.erionVestiges) {
+                  if (isSoloTeam) {
+                    shardTagHtml = `
+                      <div class="shard-tag static" title="單人隊伍自動全拿">
+                        🔹${maxPartySize}/${maxPartySize}份
+                      </div>
+                    `;
+                  } else {
+                    const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
+                    const currentShares = hasChosen ? record.shardShares : "?";
+                    shardTagHtml = `
+                      <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
+                          onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"
+                          title="設定這次撿取的艾里溫碎片份數">
+                        🔹${currentShares}/${maxPartySize}份
+                      </div>
+                    `;
+                  }
                 }
 
                 bossCellEntries.push({
@@ -1652,7 +1670,7 @@
 
     const hintEl = document.getElementById("shardLastWeekHint");
     if (hintEl) {
-      if (record.lastWeekShardShares) {
+      if (record.lastWeekShardShares !== null && record.lastWeekShardShares !== undefined) {
         hintEl.innerText = `💡 上週你在這隻 BOSS 撿了 ${record.lastWeekShardShares} 份，記得跟隊友喬好這週的份數～`;
         hintEl.style.display = "block";
       } else {
@@ -1663,11 +1681,12 @@
     const optionsContainer = document.getElementById("shardShareOptions");
     if (optionsContainer) {
       let html = "";
-      for (let i = 1; i <= maxPartySize; i++) {
+      for (let i = 0; i <= maxPartySize; i++) {
         const isSelected = record.shardShares === i;
+        const label = i === 0 ? "0 份（這次讓給隊友）" : `${i} 份`;
         html += `
           <div class="shard-share-btn ${isSelected ? 'selected' : ''}" onclick="selectShardShare(${i})">
-            ${i} 份
+            ${label}
             <span class="shard-share-amount">${formatShardNumber(unitShare * i)}</span>
           </div>
         `;
