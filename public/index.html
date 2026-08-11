@@ -1661,19 +1661,67 @@
     }
 
     const nextStatus = !record.isCompleted;
+
+    // 💡 完成時，如果是多人隊伍又有設定艾里溫碎片、份數又除不盡，要先讓使用者選份數、
+    //    按下「確定」才會一起寫入完成狀態跟份數；在那之前完全不動 isCompleted，
+    //    不管使用者點 modal 旁邊、點關閉，都不會更新卡片狀態
+    if (nextStatus) {
+      const boss = window.config.bosses.find(b => b.id === record.bossId);
+      const validMembers = members.filter(m => {
+        if (!m.charId.startsWith("guest_")) return true;
+        return window.store.guests && window.store.guests.some(g => g.id === m.charId);
+      });
+      const isSolo = validMembers.length <= 1;
+
+      if (boss && boss.erionVestiges && !isSolo) {
+        const actualTeamSize = validMembers.length;
+        const dividesEvenly = boss.maxPartySize % actualTeamSize === 0;
+
+        if (!dividesEvenly) {
+          openShardShareModal(recordKey, true); // true = 完成狀態要等使用者按確定才一起寫入
+          return;
+        }
+      }
+    }
+
     Object.values(window.store.weeklyRecords).forEach(r => {
       if (r.teamId === record.teamId) {
         r.isCompleted = nextStatus;
       }
     });
 
+    // 份數整除的情況，分配沒有爭議，直接自動平分寫入，不用另外詢問
+    if (nextStatus) {
+      const boss = window.config.bosses.find(b => b.id === record.bossId);
+      const validMembers = members.filter(m => {
+        if (!m.charId.startsWith("guest_")) return true;
+        return window.store.guests && window.store.guests.some(g => g.id === m.charId);
+      });
+      const isSolo = validMembers.length <= 1;
+
+      if (boss && boss.erionVestiges && !isSolo) {
+        const actualTeamSize = validMembers.length;
+        const dividesEvenly = boss.maxPartySize % actualTeamSize === 0;
+        if (dividesEvenly) {
+          const fairShare = boss.maxPartySize / actualTeamSize;
+          Object.values(window.store.weeklyRecords).forEach(r => {
+            if (r.teamId === record.teamId) {
+              r.shardShares = fairShare;
+            }
+          });
+        }
+      }
+    }
+
     saveStoreToCloud();
   }
 
   // ==================== 艾里溫碎片：份數選擇彈窗 ====================
   let editingShardRecordKey = null;
+  let shardModalPendingComplete = false; // true 代表：按下確定時，除了寫份數，還要一起把完成狀態設為 true
+  let pendingShardShareValue = null; // 目前選取中、但還沒真的存進去的份數
 
-  window.openShardShareModal = function(recordKey) {
+  window.openShardShareModal = function(recordKey, pendingComplete) {
     const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
     if (!record) return;
 
@@ -1681,6 +1729,9 @@
     if (!boss || !boss.erionVestiges) return;
 
     editingShardRecordKey = recordKey;
+    shardModalPendingComplete = !!pendingComplete;
+    pendingShardShareValue = record.shardShares !== null && record.shardShares !== undefined ? record.shardShares : null;
+
     const maxPartySize = boss.maxPartySize || 1;
     const unitShare = boss.erionVestiges / maxPartySize;
 
@@ -1697,38 +1748,82 @@
       }
     }
 
-    const optionsContainer = document.getElementById("shardShareOptions");
-    if (optionsContainer) {
-      let html = "";
-      for (let i = 0; i <= maxPartySize; i++) {
-        const isSelected = record.shardShares === i;
-        const label = i === 0 ? "0 份（這次讓給隊友）" : `${i} 份`;
-        html += `
-          <div class="shard-share-btn ${isSelected ? 'selected' : ''}" onclick="selectShardShare(${i})">
-            ${label}
-            <span class="shard-share-amount">${formatShardNumber(unitShare * i)}</span>
-          </div>
-        `;
-      }
-      optionsContainer.innerHTML = html;
-    }
+    renderShardShareOptions(boss, unitShare);
 
     const modal = document.getElementById("shardShareModal");
     if (modal) modal.style.display = "flex";
   };
 
+  function renderShardShareOptions(boss, unitShare) {
+    const maxPartySize = boss.maxPartySize || 1;
+    const optionsContainer = document.getElementById("shardShareOptions");
+    if (!optionsContainer) return;
+
+    let html = "";
+    for (let i = 0; i <= maxPartySize; i++) {
+      const isSelected = pendingShardShareValue === i;
+      const label = i === 0 ? "0 份（這次讓給隊友）" : `${i} 份`;
+      html += `
+        <div class="shard-share-btn ${isSelected ? 'selected' : ''}" onclick="pickShardShare(${i})">
+          ${label}
+          <span class="shard-share-amount">${formatShardNumber(unitShare * i)}</span>
+        </div>
+      `;
+    }
+    optionsContainer.innerHTML = html;
+  }
+
   window.closeShardShareModal = function() {
     const modal = document.getElementById("shardShareModal");
     if (modal) modal.style.display = "none";
     editingShardRecordKey = null;
+    shardModalPendingComplete = false;
+    pendingShardShareValue = null;
   };
 
-  window.selectShardShare = function(n) {
+  // 點選項目：只是切換目前選取中的份數，還不會存檔
+  window.pickShardShare = function(n) {
     if (!editingShardRecordKey) return;
     const record = window.store.weeklyRecords[editingShardRecordKey];
     if (!record) return;
 
+    const boss = window.config.bosses.find(b => b.id === record.bossId);
+    if (!boss) return;
+
+    pendingShardShareValue = n;
+    renderShardShareOptions(boss, boss.erionVestiges / (boss.maxPartySize || 1));
+  };
+
+  // 按下「確定」才真的寫入：份數，以及（如果是完成流程觸發的）一起把整隊的完成狀態設為 true
+  window.confirmShardShare = function() {
+    if (!editingShardRecordKey) return;
+    const record = window.store.weeklyRecords[editingShardRecordKey];
+    if (!record) return;
+
+    if (pendingShardShareValue === null) {
+      alert("請先選擇這次撿取的份數！");
+      return;
+    }
+
+    const n = pendingShardShareValue;
+
+    // 💡 選到跟上週一樣的份數時，二次確認一下，避免忘記上週已經拿比較多份、這週又選一樣的
+    const isSameAsLastWeek = record.lastWeekShardShares !== null && record.lastWeekShardShares !== undefined && record.lastWeekShardShares === n;
+    if (isSameAsLastWeek) {
+      const confirmed = confirm(`你上週也是選 ${n} 份，連續兩週選一樣的份數可能會讓隊友分配不公平，確定要維持這個選擇嗎？`);
+      if (!confirmed) return;
+    }
+
     record.shardShares = n;
+
+    if (shardModalPendingComplete) {
+      Object.values(window.store.weeklyRecords).forEach(r => {
+        if (r.teamId === record.teamId) {
+          r.isCompleted = true;
+        }
+      });
+    }
+
     saveStoreToCloud();
     window.closeShardShareModal();
   };
@@ -3208,13 +3303,14 @@
   </div>
 
   <!-- 艾里溫碎片：份數選擇 Modal -->
-  <div id="shardShareModal" class="modal" onclick="handleOverlayClick(event, closeShardShareModal)">
+  <div id="shardShareModal" class="modal">
     <div class="modal-content" style="max-width: 380px; text-align: left;">
       <h3 id="shardShareTitle" style="margin-top: 0; margin-bottom: 8px; font-size: 16px;">🔹 選擇這次撿取的艾里溫碎片份數</h3>
       <div id="shardLastWeekHint" class="shard-last-week-hint" style="display: none;"></div>
       <div id="shardShareOptions" class="shard-share-options"></div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
-        <button class="btn btn-secondary" onclick="closeShardShareModal()">關閉</button>
+        <button class="btn btn-secondary" onclick="closeShardShareModal()">取消</button>
+        <button class="btn" onclick="confirmShardShare()">確定</button>
       </div>
     </div>
   </div>
