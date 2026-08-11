@@ -938,8 +938,13 @@
     let allPlayersList = [];
 
     // ==========================================
-    // 密碼安全雜湊 (Web Crypto API SHA-256)
+    // 密碼安全雜湊 (Web Crypto API SHA-256) 與 Firebase Key 安全轉義
     // ==========================================
+    function getPlayerKey(playerId) {
+      if (!playerId) return "default";
+      return encodeURIComponent(String(playerId)).replace(/\./g, "%2E");
+    }
+
     async function hashPassword(playerId, password) {
       const salt = `maple_ledger_salt_${playerId}_v1`;
       const encoder = new TextEncoder();
@@ -955,7 +960,8 @@
     function saveTable(table) {
       if (!currentAuthPlayerId) return;
       if (window.db && window.dbRef && window.dbSet) {
-        const targetRef = window.dbRef(window.db, `/ledgers/${currentAuthPlayerId}/${table}`);
+        const key = getPlayerKey(currentAuthPlayerId);
+        const targetRef = window.dbRef(window.db, `/ledgers/${key}/${table}`);
         window.dbSet(targetRef, DATA[table] || []);
       }
     }
@@ -963,7 +969,8 @@
     function saveArchives() {
       if (!currentAuthPlayerId) return;
       if (window.db && window.dbRef && window.dbSet) {
-        const targetRef = window.dbRef(window.db, `/ledgers/${currentAuthPlayerId}/archives`);
+        const key = getPlayerKey(currentAuthPlayerId);
+        const targetRef = window.dbRef(window.db, `/ledgers/${key}/archives`);
         window.dbSet(targetRef, ARCHIVES || []);
       }
     }
@@ -1420,7 +1427,14 @@
         if (val) {
           rawPlayers = Array.isArray(val) ? val : Object.values(val);
         }
-        allPlayersList = rawPlayers.filter(p => p !== null && p !== undefined);
+        allPlayersList = rawPlayers
+          .filter(p => p !== null && p !== undefined)
+          .map((p, idx) => {
+            if (typeof p === "string") return { id: p, name: p };
+            const pName = p.name || `玩家 ${idx + 1}`;
+            const pId = p.id || p.name || `player_${idx + 1}`;
+            return { id: pId, name: pName };
+          });
 
         if (allPlayersList.length === 0) {
           allPlayersList = [{ id: "player_default", name: "主要玩家" }];
@@ -1437,7 +1451,7 @@
       const currentSelected = select.value;
 
       select.innerHTML = '<option value="">-- 請選擇玩家身分 --</option>' +
-        allPlayersList.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+        allPlayersList.map(p => `<option value="${p.id}">👤 ${p.name}</option>`).join("");
 
       if (currentSelected && allPlayersList.some(p => p.id === currentSelected)) {
         select.value = currentSelected;
@@ -1474,7 +1488,8 @@
       document.getElementById("authConfirmPassword").value = "";
 
       // 檢查此玩家是否已在雲端設定過密碼
-      const authRef = window.dbRef(window.db, `/ledgers_auth/${playerId}`);
+      const key = getPlayerKey(playerId);
+      const authRef = window.dbRef(window.db, `/ledgers_auth/${key}`);
       const snap = await window.dbGet(authRef);
       const authData = snap.val();
 
@@ -1520,6 +1535,7 @@
 
       const playerObj = allPlayersList.find(p => p.id === playerId);
       const playerName = playerObj ? playerObj.name : playerId;
+      const key = getPlayerKey(playerId);
 
       if (isNewPlayerSetup) {
         if (password.length < 4) {
@@ -1532,7 +1548,7 @@
         }
 
         const hash = await hashPassword(playerId, password);
-        const authRef = window.dbRef(window.db, `/ledgers_auth/${playerId}`);
+        const authRef = window.dbRef(window.db, `/ledgers_auth/${key}`);
         await window.dbSet(authRef, {
           passwordHash: hash,
           updatedAt: Date.now()
@@ -1540,7 +1556,7 @@
 
         onLoginSuccess(playerId, playerName, hash, rememberMe);
       } else {
-        const authRef = window.dbRef(window.db, `/ledgers_auth/${playerId}`);
+        const authRef = window.dbRef(window.db, `/ledgers_auth/${key}`);
         const snap = await window.dbGet(authRef);
         const authData = snap.val();
 
@@ -1608,7 +1624,8 @@
           return;
         }
 
-        const authRef = window.dbRef(window.db, `/ledgers_auth/${session.playerId}`);
+        const key = getPlayerKey(session.playerId);
+        const authRef = window.dbRef(window.db, `/ledgers_auth/${key}`);
         const snap = await window.dbGet(authRef);
         const authData = snap.val();
 
@@ -1662,7 +1679,8 @@
         ledgerUnsubscribe = null;
       }
 
-      const ledgerRef = window.dbRef(window.db, `/ledgers/${playerId}`);
+      const key = getPlayerKey(playerId);
+      const ledgerRef = window.dbRef(window.db, `/ledgers/${key}`);
       ledgerUnsubscribe = window.dbOnValue(ledgerRef, (snapshot) => {
         const val = snapshot.val() || {};
 
@@ -1859,7 +1877,8 @@
       }
 
       // 驗證舊密碼
-      const authRef = window.dbRef(window.db, `/ledgers_auth/${currentAuthPlayerId}`);
+      const key = getPlayerKey(currentAuthPlayerId);
+      const authRef = window.dbRef(window.db, `/ledgers_auth/${key}`);
       const snap = await window.dbGet(authRef);
       const authData = snap.val();
 
