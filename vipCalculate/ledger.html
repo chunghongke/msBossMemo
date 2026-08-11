@@ -434,6 +434,128 @@
       flex-wrap: wrap;
     }
 
+    /* ==========================================
+       Modal 彈窗與身分管理樣式
+       ========================================== */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.65);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      color: var(--text-main);
+      padding: 24px;
+      border-radius: 14px;
+      border: 1px solid var(--border-color);
+      width: min(440px, 92vw);
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 35px rgba(0, 0, 0, 0.25);
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-head h3 {
+      margin: 0;
+      font-size: 18px;
+      color: var(--title-color);
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+      text-align: left;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 6px;
+      color: var(--text-main);
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-main);
+      font-size: 14px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-control:focus {
+      border-color: #0284c7;
+    }
+
+    .form-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    .auth-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 13px;
+      font-weight: bold;
+      border: 1px solid #bae6fd;
+    }
+
+    html.dark-mode .auth-badge {
+      background: #082f49;
+      color: #7dd3fc;
+      border-color: #0369a1;
+    }
+
+    .merge-option-card {
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--body-bg);
+    }
+
+    .merge-option-card:hover {
+      border-color: #0284c7;
+      background: var(--card-bg);
+    }
+
+    .merge-option-title {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: var(--title-color);
+    }
+
+    .merge-option-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
     @media (max-width: 640px) {
       body {
         margin: 12px;
@@ -451,6 +573,11 @@
       <a class="nav-link" href="../public/index.html">📋 BOSS 備忘錄</a>
     </div>
     <div class="toolbar">
+      <div id="authStatusContainer" style="display: none; align-items: center; gap: 8px;">
+        <span class="auth-badge">👤 <span id="currentAuthPlayerName">-</span></span>
+        <button class="btn secondary small" onclick="openChangePasswordModal()">🔑 修改密碼</button>
+        <button class="btn secondary small" onclick="logoutPlayer()">🚪 登出</button>
+      </div>
       <button class="btn secondary" onclick="exportData()">⬇️ 匯出備份(JSON)</button>
       <button class="btn secondary" onclick="exportExcel()">📊 匯出 Excel</button>
       <button class="btn secondary" onclick="document.getElementById('importFile').click()">⬆️ 匯入備份</button>
@@ -622,8 +749,114 @@
     </div>
   </div>
 
+  <!-- 登入 / 解鎖身分 Modal -->
+  <div id="loginModal" class="modal" style="display: flex;">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3>🔐 帳本身分驗證</h3>
+      </div>
+      <div class="form-group">
+        <label class="form-label">選擇玩家身分：</label>
+        <select id="authPlayerSelect" class="form-control" onchange="handlePlayerSelectChange()">
+          <option value="">-- 載入中 / 請選擇玩家 --</option>
+        </select>
+      </div>
+      <div id="authStatusHint" class="form-hint" style="margin-bottom: 12px; font-weight: bold; color: #0284c7;">
+        請選擇您的玩家身分
+      </div>
+      <div class="form-group" id="passwordGroup" style="display: none;">
+        <label class="form-label" id="passwordLabel">登入密碼：</label>
+        <input type="password" id="authPassword" class="form-control" placeholder="請輸入密碼" onkeypress="if(event.key==='Enter') submitLogin()">
+      </div>
+      <div class="form-group" id="confirmPasswordGroup" style="display: none;">
+        <label class="form-label">再次確認密碼：</label>
+        <input type="password" id="authConfirmPassword" class="form-control" placeholder="請再次輸入密碼" onkeypress="if(event.key==='Enter') submitLogin()">
+      </div>
+      <div class="form-group" id="rememberGroup" style="display: none;">
+        <label style="font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <input type="checkbox" id="authRememberMe" checked> 記住此裝置登入狀態（7天）
+        </label>
+      </div>
+      <div id="authErrorMsg" style="color: #ef4444; font-size: 13px; margin-bottom: 12px; display: none;"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <button class="btn" id="loginSubmitBtn" onclick="submitLogin()" style="width: 100%; padding: 10px;" disabled>請先選擇玩家</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 本機資料智慧合併 / 遷移 Modal -->
+  <div id="migrationModal" class="modal">
+    <div class="modal-content" style="width: min(500px, 94vw);">
+      <div class="modal-head">
+        <h3>☁️ 雲端與本機資料同步</h3>
+      </div>
+      <div id="migrationMessage" style="font-size: 13px; line-height: 1.6; margin-bottom: 16px; color: var(--text-main);">
+        <!-- Dynamic message -->
+      </div>
+      <div id="migrationOptions">
+        <!-- Dynamic options -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改密碼 Modal -->
+  <div id="changePasswordModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3>🔑 修改玩家帳本密碼</h3>
+        <button class="btn secondary small" onclick="closeChangePasswordModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">目前密碼：</label>
+        <input type="password" id="oldPasswordInput" class="form-control" placeholder="請輸入舊密碼">
+      </div>
+      <div class="form-group">
+        <label class="form-label">新密碼：</label>
+        <input type="password" id="newPasswordInput" class="form-control" placeholder="請輸入新密碼">
+      </div>
+      <div class="form-group">
+        <label class="form-label">確認新密碼：</label>
+        <input type="password" id="confirmNewPasswordInput" class="form-control" placeholder="請再次輸入新密碼">
+      </div>
+      <div id="changePasswordError" style="color: #ef4444; font-size: 13px; margin-bottom: 10px; display: none;"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <button class="btn secondary" onclick="closeChangePasswordModal()">取消</button>
+        <button class="btn" onclick="submitChangePassword()">確認變更</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+  <!-- Firebase SDK 與 雲端儲存/身分驗證核心模組 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC6_PrlBgVTbmpDCrWP7KMTAq8RHtNsI-M",
+      authDomain: "msbossmemo-752e3.firebaseapp.com",
+      databaseURL: "https://msbossmemo-752e3-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "msbossmemo-752e3",
+      storageBucket: "msbossmemo-752e3.firebasestorage.app",
+      messagingSenderId: "747420574318",
+      appId: "1:747420574318:web:eff8bdb117a776264cfc7f"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    window.db = db;
+    window.dbRef = ref;
+    window.dbSet = set;
+    window.dbGet = get;
+    window.dbOnValue = onValue;
+
+    // 觸發自定義事件通知主腳本 Firebase 已就緒
+    window.dispatchEvent(new CustomEvent("firebase-ready"));
+  </script>
+
   <script>
     const SERVERS = ["挑戰者", "艾麗亞", "普力特", "琉德", "優伊娜", "愛麗西亞", "殺人鯨"];
     const MP_RATIOS = ["1", "2", "3", "4", "5", "6", "7"];
@@ -639,6 +872,8 @@
       sales: "mapleLedger_sales"
     };
     const ARCHIVE_KEY = "mapleLedger_archives";
+    const SESSION_AUTH_KEY = "maple_ledger_session";
+    const REMEMBER_AUTH_KEY = "maple_ledger_remember";
 
     function pad2(n) { return String(n).padStart(2, "0"); }
 
@@ -696,32 +931,41 @@
     let DATA = { deposits: [], listings: [], sales: [] };
     let ARCHIVES = [];
 
-    function loadAll() {
-      for (const table of Object.keys(STORE_KEYS)) {
-        try {
-          const raw = localStorage.getItem(STORE_KEYS[table]);
-          DATA[table] = raw ? JSON.parse(raw) : [];
-        } catch (e) {
-          DATA[table] = [];
-        }
-      }
+    let currentAuthPlayerId = null;
+    let currentAuthPlayerName = "";
+    let isNewPlayerSetup = false;
+    let ledgerUnsubscribe = null;
+    let allPlayersList = [];
+
+    // ==========================================
+    // 密碼安全雜湊 (Web Crypto API SHA-256)
+    // ==========================================
+    async function hashPassword(playerId, password) {
+      const salt = `maple_ledger_salt_${playerId}_v1`;
+      const encoder = new TextEncoder();
+      const data = encoder.encode(salt + password);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
     }
 
-    function loadArchives() {
-      try {
-        const raw = localStorage.getItem(ARCHIVE_KEY);
-        ARCHIVES = raw ? JSON.parse(raw) : [];
-      } catch (e) {
-        ARCHIVES = [];
+    // ==========================================
+    // 雲端儲存層 (Firebase RTDB)
+    // ==========================================
+    function saveTable(table) {
+      if (!currentAuthPlayerId) return;
+      if (window.db && window.dbRef && window.dbSet) {
+        const targetRef = window.dbRef(window.db, `/ledgers/${currentAuthPlayerId}/${table}`);
+        window.dbSet(targetRef, DATA[table] || []);
       }
     }
 
     function saveArchives() {
-      localStorage.setItem(ARCHIVE_KEY, JSON.stringify(ARCHIVES));
-    }
-
-    function saveTable(table) {
-      localStorage.setItem(STORE_KEYS[table], JSON.stringify(DATA[table]));
+      if (!currentAuthPlayerId) return;
+      if (window.db && window.dbRef && window.dbSet) {
+        const targetRef = window.dbRef(window.db, `/ledgers/${currentAuthPlayerId}/archives`);
+        window.dbSet(targetRef, ARCHIVES || []);
+      }
     }
 
     function newId() {
@@ -729,12 +973,17 @@
     }
 
     function addRow(table) {
+      if (!currentAuthPlayerId) {
+        alert("請先登入解鎖帳本！");
+        return;
+      }
       const row = { id: newId() };
       SCHEMAS[table].forEach(f => { row[f.key] = f.default ? f.default() : ""; });
       if (table === "sales") row.twd = calcSaleTwd(row.amount, row.rate);
       DATA[table].unshift(row);
       saveTable(table);
       renderTable(table);
+      if (document.getElementById("panel-summary").classList.contains("active")) renderSummary();
     }
 
     function deleteRow(table, id) {
@@ -742,6 +991,7 @@
       DATA[table] = DATA[table].filter(r => r.id !== id);
       saveTable(table);
       renderTable(table);
+      if (document.getElementById("panel-summary").classList.contains("active")) renderSummary();
     }
 
     function recalcRow(table, row) {
@@ -758,9 +1008,7 @@
       const row = DATA[table].find(r => r.id === id);
       if (!row) return;
       row[key] = isNumber ? (value === "" ? "" : parseFloat(value)) : value;
-      if (table === "deposits" && (key === "twd" || key === "method")) recalcRow(table, row);
-      if (table === "sales" && (key === "amount" || key === "rate")) recalcRow(table, row);
-      if (table === "listings" && key === "foundTime") recalcRow(table, row);
+      recalcRow(table, row);
       saveTable(table);
       renderTable(table);
       if (document.getElementById("panel-summary").classList.contains("active")) renderSummary();
@@ -773,7 +1021,7 @@
 
     function sumField(table, key, filterFn) {
       return DATA[table]
-        .filter(r => !filterFn || filterFn(r))
+        .filter(filterFn || (() => true))
         .reduce((acc, r) => acc + (parseFloat(r[key]) || 0), 0);
     }
 
@@ -983,7 +1231,6 @@
       const tickFormatter = rangeDays > 3 ? msToDateStr : msToDateTimeStr;
       const tickValues = niceTickValues(minX, maxX, 6);
 
-      // 徹底清掉這個 canvas 上任何殘留的圖表實例，避免「Canvas is already in use」
       if (costChartInstance) { costChartInstance.destroy(); costChartInstance = null; }
       const existingChart = Chart.getChart ? Chart.getChart(canvas) : null;
       if (existingChart) existingChart.destroy();
@@ -1074,7 +1321,6 @@
         return;
       }
 
-      // 合併所有事件時間點，用階梯值（當下最新的累積數字）逐點檢查是否已經交叉
       const allX = Array.from(new Set([...spendPoints.map(p => p.x), ...recoveryPoints.map(p => p.x)])).sort((a, b) => a - b);
 
       let hitX = null;
@@ -1155,187 +1401,496 @@
       URL.revokeObjectURL(url);
     }
 
-    function archiveAndReset() {
-      if (!DATA.deposits.length && !DATA.listings.length && !DATA.sales.length) {
-        alert("目前沒有任何紀錄，不需要封存。");
-        return;
-      }
-      const defaultLabel = `封存 ${todayDate()}`;
-      const label = prompt("幫這一輪紀錄取個名字（例如：第一輪、活動前等），方便之後在歷史封存裡辨識：", defaultLabel);
-      if (label === null) return;
-      if (!confirm("封存後會清空目前的儲值／掛收／賣幣紀錄，讓你可以重新開始記帳。封存的資料還是可以在「📁 歷史封存」查看、匯出或還原，確定要繼續嗎？")) return;
 
-      const archive = {
-        id: newId(),
-        label: label.trim() || defaultLabel,
-        archivedAt: nowDateTimeLocal(),
-        deposits: JSON.parse(JSON.stringify(DATA.deposits)),
-        listings: JSON.parse(JSON.stringify(DATA.listings)),
-        sales: JSON.parse(JSON.stringify(DATA.sales))
-      };
-      ARCHIVES.unshift(archive);
-      saveArchives();
-      downloadArchiveJson(archive);
 
-      DATA.deposits = [];
-      DATA.listings = [];
-      DATA.sales = [];
-      ["deposits", "listings", "sales"].forEach(saveTable);
-      renderTable("deposits");
-      renderTable("listings");
-      renderTable("sales");
-      renderSummary();
-      renderArchives();
-      alert("已經封存這一輪紀錄，畫面已經清空，可以重新開始記帳囉！（也順便幫你下載了一份這一輪的 JSON 備份）");
-    }
-
-    function restoreArchive(id) {
-      const archive = ARCHIVES.find(a => a.id === id);
-      if (!archive) return;
-      const hasCurrentData = DATA.deposits.length || DATA.listings.length || DATA.sales.length;
-      const msg = hasCurrentData
-        ? `目前畫面上還有紀錄，還原「${archive.label}」會直接覆蓋掉目前畫面上的紀錄，確定要繼續嗎？建議先封存或匯出目前的紀錄。`
-        : `確定要把「${archive.label}」這一輪還原回畫面上繼續編輯嗎？`;
-      if (!confirm(msg)) return;
-
-      DATA.deposits = JSON.parse(JSON.stringify(archive.deposits || []));
-      DATA.listings = JSON.parse(JSON.stringify(archive.listings || []));
-      DATA.sales = JSON.parse(JSON.stringify(archive.sales || []));
-      ["deposits", "listings", "sales"].forEach(saveTable);
-      renderTable("deposits");
-      renderTable("listings");
-      renderTable("sales");
-      renderSummary();
-      switchTab("deposits");
-      alert(`已還原「${archive.label}」這一輪的紀錄。`);
-    }
-
-    function deleteArchive(id) {
-      const archive = ARCHIVES.find(a => a.id === id);
-      if (!archive) return;
-      if (!confirm(`確定要刪除封存「${archive.label}」嗎？這個動作沒辦法復原（如果之前有下載過 JSON 備份，檔案還是留得住）。`)) return;
-      ARCHIVES = ARCHIVES.filter(a => a.id !== id);
-      saveArchives();
-      renderArchives();
-    }
-
-    function renderArchives() {
-      const container = document.getElementById("archiveList");
-      if (!container) return;
-
-      if (ARCHIVES.length === 0) {
-        container.innerHTML = `<div class="empty-row" style="padding:24px;text-align:center;color:var(--text-muted);border:1px dashed var(--border-color);border-radius:8px;">還沒有封存紀錄，按上面「📦 封存目前紀錄並重置」開始第一輪封存。</div>`;
+    // ==========================================
+    // 身分驗證與登入流程
+    // ==========================================
+    async function initAuthSystem() {
+      if (!window.db || !window.dbRef || !window.dbGet) {
+        setTimeout(initAuthSystem, 100);
         return;
       }
 
-      container.innerHTML = ARCHIVES.map(a => {
-        const stats = computeArchiveStats(a);
-        return `
-        <div class="archive-card">
-          <div class="archive-card-head">
-            <div class="archive-title">${escapeHtml(a.label)}</div>
-            <div class="archive-date">封存於 ${escapeHtml(a.archivedAt)}</div>
-          </div>
-          <div class="archive-stats">
-            <span>💸 花費 ${fmtMoney(stats.spend)} 元</span>
-            <span>💰 回收 ${fmtMoney(stats.recovery)} 元</span>
-            <span>✅ 淨成本 ${fmtMoney(stats.netCost)} 元</span>
-            <span>📋 ${stats.depositCount} 筆儲值／${stats.listingCount} 筆掛收／${stats.saleCount} 筆賣幣</span>
-          </div>
-          <div class="archive-actions">
-            <button class="btn secondary small" onclick="downloadArchiveJson(ARCHIVES.find(x => x.id === '${a.id}'))">⬇️ 匯出JSON</button>
-            <button class="btn secondary small" onclick="restoreArchive('${a.id}')">♻️ 還原這一輪</button>
-            <button class="btn danger small" onclick="deleteArchive('${a.id}')">🗑️ 刪除封存</button>
-          </div>
-        </div>
-      `;
-      }).join("");
-    }
+      // 1. 抓取玩家清單
+      const playersRef = window.dbRef(window.db, "/players");
+      window.dbOnValue(playersRef, (snapshot) => {
+        const val = snapshot.val();
+        let rawPlayers = [];
+        if (val) {
+          rawPlayers = Array.isArray(val) ? val : Object.values(val);
+        }
+        allPlayersList = rawPlayers.filter(p => p !== null && p !== undefined);
 
-    function exportData() {
-      const blob = new Blob([JSON.stringify(DATA, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const today = todayDate();
-      a.href = url;
-      a.download = `maple-ledger-backup-${today}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+        if (allPlayersList.length === 0) {
+          allPlayersList = [{ id: "player_default", name: "主要玩家" }];
+        }
 
-    const SHEET_LABELS = {
-      deposits: { name: "儲值紀錄", fields: { date: "日期時間", method: "儲值方式", twd: "花費台幣", points: "取得樂豆點", note: "備註" } },
-      listings: { name: "楓幣掛收紀錄", fields: { date: "日期時間", amount: "掛收楓幣(億)", rate: "楓點比值(楓點:1億)", source: "楓點來源", server: "伺服器", listed: "已成交", foundTime: "成交時間", note: "備註" } },
-      sales: { name: "賣幣交易紀錄", fields: { date: "日期時間", amount: "賣出楓幣(億)", rate: "賣幣比值(1台幣:萬楓幣)", server: "伺服器", twd: "回收台幣", note: "買家/備註" } }
-    };
-
-    function formatCellValue(table, key, value) {
-      if (table === "listings" && key === "listed") return value === true ? "V" : "";
-      return value === undefined ? "" : value;
-    }
-
-    function buildCombinedSheetAOA() {
-      const aoa = [];
-      ["deposits", "listings", "sales"].forEach(table => {
-        const label = SHEET_LABELS[table];
-        const keys = Object.keys(label.fields);
-        aoa.push([label.name]);
-        aoa.push(Object.values(label.fields));
-        DATA[table].forEach(row => {
-          aoa.push(keys.map(k => formatCellValue(table, k, row[k])));
-        });
-        aoa.push([]);
+        renderPlayerDropdown();
+        checkAutoLogin();
       });
-      return aoa;
     }
 
-    function exportExcel() {
-      if (typeof XLSX === "undefined") {
-        alert("Excel 匯出功能需要連上網路載入元件，請確認網路連線後重新整理頁面再試一次。");
+    function renderPlayerDropdown() {
+      const select = document.getElementById("authPlayerSelect");
+      if (!select) return;
+      const currentSelected = select.value;
+
+      select.innerHTML = '<option value="">-- 請選擇玩家身分 --</option>' +
+        allPlayersList.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+
+      if (currentSelected && allPlayersList.some(p => p.id === currentSelected)) {
+        select.value = currentSelected;
+      }
+    }
+
+    async function handlePlayerSelectChange() {
+      const select = document.getElementById("authPlayerSelect");
+      const playerId = select.value;
+      const hint = document.getElementById("authStatusHint");
+      const passGroup = document.getElementById("passwordGroup");
+      const confirmGroup = document.getElementById("confirmPasswordGroup");
+      const rememberGroup = document.getElementById("rememberGroup");
+      const submitBtn = document.getElementById("loginSubmitBtn");
+      const errorMsg = document.getElementById("authErrorMsg");
+
+      errorMsg.style.display = "none";
+
+      if (!playerId) {
+        hint.innerText = "請選擇您的玩家身分";
+        hint.style.color = "#0284c7";
+        passGroup.style.display = "none";
+        confirmGroup.style.display = "none";
+        rememberGroup.style.display = "none";
+        submitBtn.disabled = true;
+        submitBtn.innerText = "請先選擇玩家";
         return;
       }
-      const wb = XLSX.utils.book_new();
 
-      const ws = XLSX.utils.aoa_to_sheet(buildCombinedSheetAOA());
-      ws["!cols"] = [{ wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, ws, "紀錄");
+      submitBtn.disabled = false;
+      passGroup.style.display = "block";
+      rememberGroup.style.display = "block";
+      document.getElementById("authPassword").value = "";
+      document.getElementById("authConfirmPassword").value = "";
 
-      const summaryRows = computeSummaryItems().map(it => ({
-        "項目": it.label.replace(/^[^\u4e00-\u9fa5]+/, "").trim(),
-        "數值": it.value
-      }));
-      const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
-      XLSX.utils.book_append_sheet(wb, wsSummary, "成本估算摘要");
+      // 檢查此玩家是否已在雲端設定過密碼
+      const authRef = window.dbRef(window.db, `/ledgers_auth/${playerId}`);
+      const snap = await window.dbGet(authRef);
+      const authData = snap.val();
 
-      XLSX.writeFile(wb, `maple-ledger-${todayDate()}.xlsx`);
+      if (authData && authData.passwordHash) {
+        isNewPlayerSetup = false;
+        hint.innerText = "🔒 請輸入此玩家的登入密碼";
+        hint.style.color = "#0284c7";
+        document.getElementById("passwordLabel").innerText = "登入密碼：";
+        confirmGroup.style.display = "none";
+        submitBtn.innerText = "解鎖 / 進入帳本";
+      } else {
+        isNewPlayerSetup = true;
+        hint.innerText = "✨ 首次使用此玩家帳號，請設定您的專屬登入密碼";
+        hint.style.color = "#10b981";
+        document.getElementById("passwordLabel").innerText = "設定新密碼：";
+        confirmGroup.style.display = "block";
+        submitBtn.innerText = "設定密碼並進入帳本";
+      }
+
+      setTimeout(() => {
+        document.getElementById("authPassword").focus();
+      }, 50);
     }
 
-    function importData(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        let parsed;
-        try {
-          parsed = JSON.parse(reader.result);
-        } catch (e) {
-          alert("這個檔案格式讀不出來，請確認是本頁面匯出的備份檔。");
+    async function submitLogin() {
+      const select = document.getElementById("authPlayerSelect");
+      const playerId = select.value;
+      const password = document.getElementById("authPassword").value.trim();
+      const confirmPassword = document.getElementById("authConfirmPassword").value.trim();
+      const rememberMe = document.getElementById("authRememberMe").checked;
+      const errorMsg = document.getElementById("authErrorMsg");
+
+      errorMsg.style.display = "none";
+
+      if (!playerId) {
+        showAuthError("請先選擇玩家身分！");
+        return;
+      }
+      if (!password) {
+        showAuthError("請輸入密碼！");
+        return;
+      }
+
+      const playerObj = allPlayersList.find(p => p.id === playerId);
+      const playerName = playerObj ? playerObj.name : playerId;
+
+      if (isNewPlayerSetup) {
+        if (password.length < 4) {
+          showAuthError("密碼長度建議至少 4 碼！");
           return;
         }
-        if (!confirm("匯入會覆蓋目前瀏覽器裡的所有紀錄，確定要繼續嗎？")) return;
-        ["deposits", "listings", "sales"].forEach(table => {
-          DATA[table] = Array.isArray(parsed[table]) ? parsed[table] : [];
-          saveTable(table);
-          renderTable(table);
+        if (password !== confirmPassword) {
+          showAuthError("兩次輸入的新密碼不相符！");
+          return;
+        }
+
+        const hash = await hashPassword(playerId, password);
+        const authRef = window.dbRef(window.db, `/ledgers_auth/${playerId}`);
+        await window.dbSet(authRef, {
+          passwordHash: hash,
+          updatedAt: Date.now()
         });
-        renderSummary();
-        alert("匯入完成！");
-      };
-      reader.readAsText(file);
-      event.target.value = "";
+
+        onLoginSuccess(playerId, playerName, hash, rememberMe);
+      } else {
+        const authRef = window.dbRef(window.db, `/ledgers_auth/${playerId}`);
+        const snap = await window.dbGet(authRef);
+        const authData = snap.val();
+
+        if (!authData || !authData.passwordHash) {
+          showAuthError("找不到此玩家的驗證資料，請重新選擇。");
+          return;
+        }
+
+        const inputHash = await hashPassword(playerId, password);
+        if (inputHash !== authData.passwordHash) {
+          showAuthError("密碼錯誤，請重新輸入！");
+          return;
+        }
+
+        onLoginSuccess(playerId, playerName, inputHash, rememberMe);
+      }
     }
 
-    // ---- 深色模式（跟計算機頁一致的邏輯） ----
+    function showAuthError(msg) {
+      const errorMsg = document.getElementById("authErrorMsg");
+      errorMsg.innerText = msg;
+      errorMsg.style.display = "block";
+    }
+
+    function onLoginSuccess(playerId, playerName, hash, rememberMe) {
+      currentAuthPlayerId = playerId;
+      currentAuthPlayerName = playerName;
+
+      // 儲存 Session
+      const sessionData = { playerId, playerName, hash, timestamp: Date.now() };
+      sessionStorage.setItem(SESSION_AUTH_KEY, JSON.stringify(sessionData));
+
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_AUTH_KEY, JSON.stringify(sessionData));
+      } else {
+        localStorage.removeItem(REMEMBER_AUTH_KEY);
+      }
+
+      // 更新 UI 狀態
+      document.getElementById("loginModal").style.display = "none";
+      document.getElementById("authStatusContainer").style.display = "inline-flex";
+      document.getElementById("currentAuthPlayerName").innerText = playerName;
+
+      // 掛載雲端監聽
+      attachLedgerListener(playerId);
+    }
+
+    async function checkAutoLogin() {
+      if (currentAuthPlayerId) return;
+
+      let saved = sessionStorage.getItem(SESSION_AUTH_KEY);
+      if (!saved) {
+        saved = localStorage.getItem(REMEMBER_AUTH_KEY);
+      }
+      if (!saved) return;
+
+      try {
+        const session = JSON.parse(saved);
+        if (!session.playerId || !session.hash) return;
+
+        // 如果記住登入超過 7 天則過期
+        if (session.timestamp && Date.now() - session.timestamp > 7 * 24 * 60 * 60 * 1000) {
+          localStorage.removeItem(REMEMBER_AUTH_KEY);
+          sessionStorage.removeItem(SESSION_AUTH_KEY);
+          return;
+        }
+
+        const authRef = window.dbRef(window.db, `/ledgers_auth/${session.playerId}`);
+        const snap = await window.dbGet(authRef);
+        const authData = snap.val();
+
+        if (authData && authData.passwordHash === session.hash) {
+          const playerObj = allPlayersList.find(p => p.id === session.playerId);
+          const pName = playerObj ? playerObj.name : session.playerName;
+          onLoginSuccess(session.playerId, pName, session.hash, !!localStorage.getItem(REMEMBER_AUTH_KEY));
+        }
+      } catch (e) {
+        console.error("Auto login error:", e);
+      }
+    }
+
+    function logoutPlayer() {
+      if (!confirm(`確定要登出【${currentAuthPlayerName}】嗎？`)) return;
+
+      sessionStorage.removeItem(SESSION_AUTH_KEY);
+      localStorage.removeItem(REMEMBER_AUTH_KEY);
+
+      if (ledgerUnsubscribe) {
+        ledgerUnsubscribe();
+        ledgerUnsubscribe = null;
+      }
+
+      currentAuthPlayerId = null;
+      currentAuthPlayerName = "";
+      DATA = { deposits: [], listings: [], sales: [] };
+      ARCHIVES = [];
+
+      renderTable("deposits");
+      renderTable("listings");
+      renderTable("sales");
+      renderSummary();
+      renderArchives();
+
+      document.getElementById("authStatusContainer").style.display = "none";
+      document.getElementById("loginModal").style.display = "flex";
+      document.getElementById("authPassword").value = "";
+      document.getElementById("authConfirmPassword").value = "";
+      handlePlayerSelectChange();
+    }
+
+    // ==========================================
+    // 雲端資料同步與本機多裝置智慧合併 (Migration)
+    // ==========================================
+    let isMigrationChecked = false;
+
+    function attachLedgerListener(playerId) {
+      if (ledgerUnsubscribe) {
+        ledgerUnsubscribe();
+        ledgerUnsubscribe = null;
+      }
+
+      const ledgerRef = window.dbRef(window.db, `/ledgers/${playerId}`);
+      ledgerUnsubscribe = window.dbOnValue(ledgerRef, (snapshot) => {
+        const val = snapshot.val() || {};
+
+        DATA.deposits = Array.isArray(val.deposits) ? val.deposits : (val.deposits ? Object.values(val.deposits) : []);
+        DATA.listings = Array.isArray(val.listings) ? val.listings : (val.listings ? Object.values(val.listings) : []);
+        DATA.sales = Array.isArray(val.sales) ? val.sales : (val.sales ? Object.values(val.sales) : []);
+        ARCHIVES = Array.isArray(val.archives) ? val.archives : (val.archives ? Object.values(val.archives) : []);
+
+        renderTable("deposits");
+        renderTable("listings");
+        renderTable("sales");
+        renderSummary();
+        renderArchives();
+
+        // 登入後首次拉取時，檢查本機是否殘留舊 LocalStorage 需要遷移
+        if (!isMigrationChecked) {
+          isMigrationChecked = true;
+          checkLocalStorageMigration(playerId, val);
+        }
+      });
+    }
+
+    function checkLocalStorageMigration(playerId, cloudVal) {
+      let localData = { deposits: [], listings: [], sales: [], archives: [] };
+      let hasLocalData = false;
+
+      ["deposits", "listings", "sales"].forEach(table => {
+        try {
+          const raw = localStorage.getItem(STORE_KEYS[table]);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length > 0) {
+              localData[table] = arr;
+              hasLocalData = true;
+            }
+          }
+        } catch (e) {}
+      });
+
+      try {
+        const raw = localStorage.getItem(ARCHIVE_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr) && arr.length > 0) {
+            localData.archives = arr;
+            hasLocalData = true;
+          }
+        }
+      } catch (e) {}
+
+      if (!hasLocalData) return;
+
+      const cloudCount = (DATA.deposits.length + DATA.listings.length + DATA.sales.length + ARCHIVES.length);
+      const localCount = (localData.deposits.length + localData.listings.length + localData.sales.length + localData.archives.length);
+
+      // 情境 1：雲端完全是空的，本機有舊紀錄 -> 直接上傳並清除本機
+      if (cloudCount === 0 && localCount > 0) {
+        DATA.deposits = localData.deposits;
+        DATA.listings = localData.listings;
+        DATA.sales = localData.sales;
+        ARCHIVES = localData.archives;
+
+        ["deposits", "listings", "sales"].forEach(saveTable);
+        saveArchives();
+        clearLocalBackups();
+
+        alert(`💡 已自動將此裝置上的 ${localCount} 筆本機歷史紀錄匯入至【${currentAuthPlayerName}】的雲端帳本！`);
+        return;
+      }
+
+      // 情境 2：雲端已有資料，且本機也有資料 -> 彈出智慧合併選擇彈窗
+      showMigrationModal(localData, cloudCount, localCount);
+    }
+
+    function clearLocalBackups() {
+      ["deposits", "listings", "sales"].forEach(table => {
+        localStorage.removeItem(STORE_KEYS[table]);
+      });
+      localStorage.removeItem(ARCHIVE_KEY);
+    }
+
+    function showMigrationModal(localData, cloudCount, localCount) {
+      const modal = document.getElementById("migrationModal");
+      const msg = document.getElementById("migrationMessage");
+      const options = document.getElementById("migrationOptions");
+
+      msg.innerHTML = `
+        偵測到本機瀏覽器有 <strong>${localCount} 筆既有紀錄</strong>，而【${currentAuthPlayerName}】的雲端帳本目前有 <strong>${cloudCount} 筆紀錄</strong>。<br>
+        為防止多裝置資料覆蓋或遺失，請選擇同步方式：
+      `;
+
+      options.innerHTML = `
+        <div class="merge-option-card" onclick="executeSmartMerge()">
+          <div class="merge-option-title">🔄 【智慧合併】 (最推薦 ⭐)</div>
+          <div class="merge-option-desc">以 ID 去重比對，將本機獨有的紀錄追加至雲端，保留兩邊所有資料。</div>
+        </div>
+        <div class="merge-option-card" onclick="executeKeepCloud()">
+          <div class="merge-option-title">☁️ 【以雲端為主】</div>
+          <div class="merge-option-desc">捨棄這台裝置的本機舊紀錄，直接使用雲端最新帳本。</div>
+        </div>
+        <div class="merge-option-card" onclick="executeOverwriteCloud()">
+          <div class="merge-option-title">💻 【以本機覆蓋雲端】</div>
+          <div class="merge-option-desc">完全以這台裝置的本機紀錄覆寫雲端（雲端獨有的資料將會被移除）。</div>
+        </div>
+      `;
+
+      window._pendingLocalMigration = localData;
+      modal.style.display = "flex";
+    }
+
+    window.executeSmartMerge = function() {
+      const local = window._pendingLocalMigration;
+      if (!local) return;
+
+      ["deposits", "listings", "sales"].forEach(table => {
+        const cloudIds = new Set((DATA[table] || []).map(r => r.id));
+        const toAdd = (local[table] || []).filter(r => !cloudIds.has(r.id));
+        DATA[table] = [...(DATA[table] || []), ...toAdd];
+        saveTable(table);
+      });
+
+      const cloudArchiveIds = new Set(ARCHIVES.map(a => a.id));
+      const archivesToAdd = (local.archives || []).filter(a => !cloudArchiveIds.has(a.id));
+      ARCHIVES = [...ARCHIVES, ...archivesToAdd];
+      saveArchives();
+
+      clearLocalBackups();
+      document.getElementById("migrationModal").style.display = "none";
+      alert("✅ 智慧合併完成，本機特有紀錄已追加至雲端！");
+    };
+
+    window.executeKeepCloud = function() {
+      clearLocalBackups();
+      document.getElementById("migrationModal").style.display = "none";
+      alert("✅ 已切換為雲端最新帳本，並已清理本機暫存。");
+    };
+
+    window.executeOverwriteCloud = function() {
+      if (!confirm("確定要完全以本機紀錄覆蓋雲端嗎？此動作無法復原！")) return;
+      const local = window._pendingLocalMigration;
+      if (!local) return;
+
+      DATA.deposits = local.deposits || [];
+      DATA.listings = local.listings || [];
+      DATA.sales = local.sales || [];
+      ARCHIVES = local.archives || [];
+
+      ["deposits", "listings", "sales"].forEach(saveTable);
+      saveArchives();
+      clearLocalBackups();
+
+      document.getElementById("migrationModal").style.display = "none";
+      alert("✅ 已以本機資料成功覆寫雲端帳本！");
+    };
+
+    // ==========================================
+    // 修改密碼功能
+    // ==========================================
+    window.openChangePasswordModal = function() {
+      if (!currentAuthPlayerId) return;
+      document.getElementById("oldPasswordInput").value = "";
+      document.getElementById("newPasswordInput").value = "";
+      document.getElementById("confirmNewPasswordInput").value = "";
+      document.getElementById("changePasswordError").style.display = "none";
+      document.getElementById("changePasswordModal").style.display = "flex";
+    };
+
+    window.closeChangePasswordModal = function() {
+      document.getElementById("changePasswordModal").style.display = "none";
+    };
+
+    window.submitChangePassword = async function() {
+      const oldPass = document.getElementById("oldPasswordInput").value.trim();
+      const newPass = document.getElementById("newPasswordInput").value.trim();
+      const confirmNewPass = document.getElementById("confirmNewPasswordInput").value.trim();
+      const errEl = document.getElementById("changePasswordError");
+
+      errEl.style.display = "none";
+
+      if (!oldPass || !newPass || !confirmNewPass) {
+        errEl.innerText = "請填寫所有欄位！";
+        errEl.style.display = "block";
+        return;
+      }
+      if (newPass.length < 4) {
+        errEl.innerText = "新密碼長度建議至少 4 碼！";
+        errEl.style.display = "block";
+        return;
+      }
+      if (newPass !== confirmNewPass) {
+        errEl.innerText = "兩次輸入的新密碼不相符！";
+        errEl.style.display = "block";
+        return;
+      }
+
+      // 驗證舊密碼
+      const authRef = window.dbRef(window.db, `/ledgers_auth/${currentAuthPlayerId}`);
+      const snap = await window.dbGet(authRef);
+      const authData = snap.val();
+
+      const oldHash = await hashPassword(currentAuthPlayerId, oldPass);
+      if (!authData || authData.passwordHash !== oldHash) {
+        errEl.innerText = "目前密碼輸入錯誤！";
+        errEl.style.display = "block";
+        return;
+      }
+
+      // 寫入新密碼 Hash
+      const newHash = await hashPassword(currentAuthPlayerId, newPass);
+      await window.dbSet(authRef, {
+        passwordHash: newHash,
+        updatedAt: Date.now()
+      });
+
+      // 更新 session & remember
+      const sessionData = { playerId: currentAuthPlayerId, playerName: currentAuthPlayerName, hash: newHash, timestamp: Date.now() };
+      sessionStorage.setItem(SESSION_AUTH_KEY, JSON.stringify(sessionData));
+      if (localStorage.getItem(REMEMBER_AUTH_KEY)) {
+        localStorage.setItem(REMEMBER_AUTH_KEY, JSON.stringify(sessionData));
+      }
+
+      window.closeChangePasswordModal();
+      alert("🎉 密碼修改成功！");
+    };
+
+    // ==========================================
+    // 深色模式與初始化
+    // ==========================================
     (function applyThemeImmediately() {
       const savedTheme = localStorage.getItem("theme");
       const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -1362,14 +1917,15 @@
       if (document.getElementById("panel-summary").classList.contains("active")) renderChart();
     };
 
+    window.addEventListener("firebase-ready", () => {
+      initAuthSystem();
+    });
+
     document.addEventListener("DOMContentLoaded", function () {
       updateThemeButton(document.documentElement.classList.contains("dark-mode"));
-      loadAll();
-      loadArchives();
-      renderTable("deposits");
-      renderTable("listings");
-      renderTable("sales");
-      renderSummary();
+      if (window.db) {
+        initAuthSystem();
+      }
     });
   </script>
 
