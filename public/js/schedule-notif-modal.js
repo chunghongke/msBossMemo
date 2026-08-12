@@ -5,6 +5,70 @@
  * 依賴 schedule-core.js 中宣告的 NOTIF_... 等常數
  */
 
+// 初始化 IndexedDB 本地大容量資料庫，用以避開 localStorage 的 5MB 限制
+function initIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("BossPartyDB", 1);
+    request.onupgradeneeded = function(e) {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("assets")) {
+        db.createObjectStore("assets");
+      }
+    };
+    request.onsuccess = function(e) {
+      resolve(e.target.result);
+    };
+    request.onerror = function(e) {
+      reject(e.target.error);
+    };
+  });
+}
+
+// 儲存本地音效 Blob 數據，並記錄檔案名稱
+async function saveCustomAudioBlob(file) {
+  const db = await initIndexedDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["assets"], "readwrite");
+    const store = transaction.objectStore("assets");
+    
+    // 封裝 Blob 與檔案名稱
+    const record = {
+      blob: file,
+      name: file.name,
+      size: file.size,
+      updatedAt: Date.now()
+    };
+    
+    const request = store.put(record, "customChime");
+    request.onsuccess = () => resolve();
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+// 獲取本地音效
+async function getCustomAudioBlob() {
+  const db = await initIndexedDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["assets"], "readonly");
+    const store = transaction.objectStore("assets");
+    const request = store.get("customChime");
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+// 刪除自訂音效
+async function deleteCustomAudioBlob() {
+  const db = await initIndexedDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["assets"], "readwrite");
+    const store = transaction.objectStore("assets");
+    const request = store.delete("customChime");
+    request.onsuccess = () => resolve();
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
 function loadPartyScheduleIntoForm(schedule) {
   const recurringDayEl = document.getElementById("partyScheduleRecurringDay");
   const recurringTimeEl = document.getElementById("partyScheduleRecurringTime");
@@ -77,6 +141,9 @@ function readPartyScheduleFromForm() {
 window.openNotificationModal = function() {
   updateNotificationUI();
   renderNotificationScheduleList();
+  if (window.updateCustomAudioStatusUI) {
+    window.updateCustomAudioStatusUI();
+  }
   document.getElementById("notificationModal").style.display = "flex";
 };
 
@@ -183,28 +250,61 @@ window.stopNotificationChime = function() {
   }
 };
 
-window.playNotificationChime = function() {
+window.playNotificationChime = async function() {
   // 播放前，如果上一次的歌還在播，先停止，防止聲音重疊
   window.stopNotificationChime();
 
   try {
-    const customAudio = new Audio("chime.mp3");
-    customAudio.volume = 0.5; // 預設 50% 音量
+    // 1. 嘗試從 IndexedDB 讀取本地自訂音效
+    const record = await getCustomAudioBlob();
+    if (record && record.blob) {
+      console.log("偵測到本地自訂音效，嘗試播放:", record.name);
+      const audioUrl = URL.createObjectURL(record.blob);
+      const customAudio = new Audio(audioUrl);
+      customAudio.volume = 0.5;
+      
+      window.currentChimeAudio = customAudio;
+      
+      customAudio.onerror = function() {
+        console.warn("本地自訂音訊播放出錯，Fallback 到伺服器音檔。");
+        window.currentChimeAudio = null;
+        URL.revokeObjectURL(audioUrl); // 釋放記憶體
+        playServerChime();
+      };
+      
+      const playPromise = customAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => {
+          window.currentChimeAudio = null;
+          URL.revokeObjectURL(audioUrl);
+          playServerChime();
+        });
+      }
+      return; // 成功播放本地，直接返回
+    }
+  } catch (err) {
+    console.warn("讀取 IndexedDB 本地音效失敗，將使用預設路徑:", err);
+  }
+
+  // 2. 如果沒有自訂本地音效，改播伺服器上的 chime.mp3 或水晶音效
+  playServerChime();
+};
+
+function playServerChime() {
+  try {
+    const serverAudio = new Audio("chime.mp3");
+    serverAudio.volume = 0.5;
     
-    // 儲存到全域變數，以便隨時停止
-    window.currentChimeAudio = customAudio;
+    window.currentChimeAudio = serverAudio;
     
-    // 如果檔案載入錯誤 (例如 chime.mp3 不存在)，fallback 到預設水晶音效
-    customAudio.onerror = function() {
+    serverAudio.onerror = function() {
       window.currentChimeAudio = null;
       playDefaultSynthesizedChime();
     };
 
-    // 嘗試播放
-    const playPromise = customAudio.play();
+    const playPromise = serverAudio.play();
     if (playPromise !== undefined) {
       playPromise.catch(e => {
-        // 捕捉瀏覽器自動播放限制或找不到檔案錯誤
         window.currentChimeAudio = null;
         playDefaultSynthesizedChime();
       });
@@ -213,7 +313,72 @@ window.playNotificationChime = function() {
     window.currentChimeAudio = null;
     playDefaultSynthesizedChime();
   }
+}
+
+// 檔案選擇上傳處理
+window.handleCustomAudioUpload = async function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!file.type.match('audio.*') && !file.name.endsWith('.mp3')) {
+    alert("請選擇 MP3 格式的音訊檔案！");
+    return;
+  }
+  
+  const statusText = document.getElementById("customAudioStatusText");
+  if (statusText) statusText.textContent = "正在將音檔寫入瀏覽器本地資料庫...";
+  
+  try {
+    await saveCustomAudioBlob(file);
+    await window.updateCustomAudioStatusUI();
+    alert(`自訂鈴聲設定成功！\n音檔已安全儲存在您的瀏覽器本地資料庫。`);
+  } catch (err) {
+    console.error("儲存自訂音效失敗:", err);
+    if (statusText) statusText.textContent = "儲存自訂音效失敗。";
+    alert("儲存自訂音效失敗，請重試！");
+  }
 };
+
+// 清除自訂鈴聲
+window.handleClearCustomAudio = async function() {
+  if (!confirm("確定要清除自訂鈴聲，還原為預設音效嗎？")) return;
+  try {
+    await deleteCustomAudioBlob();
+    await window.updateCustomAudioStatusUI();
+    document.getElementById("customAudioFileInput").value = "";
+    alert("已還原為預設音效！");
+  } catch (err) {
+    console.error("清除自訂音效失敗:", err);
+    alert("清除自訂音效失敗，請重試。");
+  }
+};
+
+// 更新 UI 上的自訂鈴聲狀態
+window.updateCustomAudioStatusUI = async function() {
+  const statusText = document.getElementById("customAudioStatusText");
+  const clearBtn = document.getElementById("clearCustomAudioBtn");
+  if (!statusText) return;
+  
+  try {
+    const record = await getCustomAudioBlob();
+    if (record && record.blob) {
+      statusText.textContent = `🎵 已啟用自訂鈴聲：${record.name} (${formatBytes(record.size)})`;
+      if (clearBtn) clearBtn.style.display = "inline-block";
+    } else {
+      statusText.textContent = "目前狀態：使用系統預設音效";
+      if (clearBtn) clearBtn.style.display = "none";
+    }
+  } catch (err) {
+    console.warn("無法取得自訂音效狀態:", err);
+  }
+};
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 function playDefaultSynthesizedChime() {
   try {

@@ -321,8 +321,24 @@
           <label style="font-size: 13px; font-weight: bold;">提示音效：</label>
           <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
             <input type="checkbox" id="notifSoundToggle" onchange="saveNotificationPreferences()" checked>
-            播放水晶提示音
+            開啟通知鈴聲
           </label>
+        </div>
+
+        <div style="border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 6px;">
+          <label style="font-size: 13px; font-weight: bold; display: block; margin-bottom: 6px;">自訂個人提醒鈴聲 (.mp3)：</label>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="btn" onclick="document.getElementById('customAudioFileInput').click()" style="padding: 6px 12px; font-size: 12px; background: var(--border-color); border: 1px solid var(--border-color); color: var(--text-color); margin: 0;">
+              📁 選擇本地 MP3 檔案
+            </button>
+            <input type="file" id="customAudioFileInput" accept="audio/mpeg,audio/mp3" style="display: none;" onchange="handleCustomAudioUpload(event)">
+            <button id="clearCustomAudioBtn" class="btn" onclick="handleClearCustomAudio()" style="padding: 6px 12px; font-size: 12px; background: #ef4444; border: 1px solid #ef4444; color: #fff; display: none; margin: 0;">
+              🗑️ 清除自訂
+            </button>
+          </div>
+          <div id="customAudioStatusText" style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+            目前狀態：使用系統預設音效
+          </div>
         </div>
 
         <div>
