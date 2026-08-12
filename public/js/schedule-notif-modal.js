@@ -6,6 +6,7 @@
  */
 
 const NOTIF_SOUND_TYPE_KEY = "maple_notif_sound_type";
+const NOTIF_VOLUME_KEY = "maple_notif_volume";
 
 // 初始化 IndexedDB 本地大容量資料庫，用以避開 localStorage 的 5MB 限制
 function initIndexedDB() {
@@ -188,12 +189,21 @@ window.saveNotificationPreferences = function() {
   const soundEnabled = document.getElementById("notifSoundToggle").checked;
   const scopeRadio = document.querySelector('input[name="notifScope"]:checked');
   const scope = scopeRadio ? scopeRadio.value : "primary";
+  const volume = document.getElementById("notifVolumeSlider").value;
 
   localStorage.setItem(NOTIF_LEAD_KEY, leadTime);
   localStorage.setItem(NOTIF_SOUND_KEY, soundEnabled ? "true" : "false");
   localStorage.setItem(NOTIF_SCOPE_KEY, scope);
+  localStorage.setItem(NOTIF_VOLUME_KEY, volume);
 
   renderNotificationScheduleList();
+};
+
+window.handleVolumeChange = function(val) {
+  const valueSpan = document.getElementById("notifVolumeValue");
+  if (valueSpan) {
+    valueSpan.textContent = `${Math.round(val * 100)}%`;
+  }
 };
 
 function updateNotificationUI() {
@@ -201,6 +211,7 @@ function updateNotificationUI() {
   const leadTime = localStorage.getItem(NOTIF_LEAD_KEY) || "15";
   const soundEnabled = localStorage.getItem(NOTIF_SOUND_KEY) !== "false";
   const scope = localStorage.getItem(NOTIF_SCOPE_KEY) || "primary";
+  const volume = localStorage.getItem(NOTIF_VOLUME_KEY) || "0.5";
 
   const toggle = document.getElementById("notifEnabledToggle");
   if (toggle) toggle.checked = isEnabled;
@@ -210,6 +221,12 @@ function updateNotificationUI() {
 
   const soundToggle = document.getElementById("notifSoundToggle");
   if (soundToggle) soundToggle.checked = soundEnabled;
+
+  const volSlider = document.getElementById("notifVolumeSlider");
+  if (volSlider) volSlider.value = volume;
+
+  const volValue = document.getElementById("notifVolumeValue");
+  if (volValue) volValue.textContent = `${Math.round(volume * 100)}%`;
 
   const scopeRadios = document.querySelectorAll('input[name="notifScope"]');
   scopeRadios.forEach(r => { r.checked = (r.value === scope); });
@@ -257,6 +274,7 @@ window.playNotificationChime = async function() {
   window.stopNotificationChime();
 
   const soundType = localStorage.getItem(NOTIF_SOUND_TYPE_KEY) || "short";
+  const volume = parseFloat(localStorage.getItem(NOTIF_VOLUME_KEY) || "0.5");
 
   if (soundType === "custom") {
     try {
@@ -266,7 +284,7 @@ window.playNotificationChime = async function() {
         console.log("偵測到本地自訂音效，嘗試播放:", record.name);
         const audioUrl = URL.createObjectURL(record.blob);
         const customAudio = new Audio(audioUrl);
-        customAudio.volume = 0.5;
+        customAudio.volume = volume;
         
         window.currentChimeAudio = customAudio;
         
@@ -304,7 +322,8 @@ window.playNotificationChime = async function() {
 function playServerChime(fileName) {
   try {
     const serverAudio = new Audio(fileName);
-    serverAudio.volume = 0.5;
+    const volume = parseFloat(localStorage.getItem(NOTIF_VOLUME_KEY) || "0.5");
+    serverAudio.volume = volume;
     
     window.currentChimeAudio = serverAudio;
     
@@ -420,12 +439,17 @@ function playDefaultSynthesizedChime() {
     const ctx = new AudioCtx();
     const now = ctx.currentTime;
     const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    
+    // 讀取音量比率
+    const volume = parseFloat(localStorage.getItem(NOTIF_VOLUME_KEY) || "0.5");
+    
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + i * 0.1);
-      gain.gain.setValueAtTime(0.18, now + i * 0.1);
+      // 原本預設水晶音量為 0.18，在此乘上使用者調整的音量比率
+      gain.gain.setValueAtTime(0.18 * volume, now + i * 0.1);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.1 + 0.5);
       osc.connect(gain);
       gain.connect(ctx.destination);
