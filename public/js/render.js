@@ -244,12 +244,16 @@
                 }
 
                 const effectiveSchedule = getTeamEffectiveSchedule(team);
-                let scheduleBadgeHtml = "";
+                let scheduleTagHtml = "";
                 if (effectiveSchedule) {
+                  const isTemp = effectiveSchedule.isTemp;
+                  const tagIcon = isTemp ? "⚡" : "⏰";
                   const scheduleFormatted = formatScheduleDisplay(effectiveSchedule);
-                  scheduleBadgeHtml = `
-                    <div class="team-schedule-badge ${effectiveSchedule.isTemp ? 'temp' : ''} ${isCompleted ? 'completed' : ''}" title="${effectiveSchedule.isTemp ? '⚡ 本週臨時時間（下週自動恢復）' : '📅 常態固定出團時間'}">
-                      ${scheduleFormatted}
+                  scheduleTagHtml = `
+                    <div class="schedule-tag ${isTemp ? 'temp' : ''} ${isCompleted ? 'completed' : ''}"
+                         onclick="event.stopPropagation(); showTeamScheduleInfo('${team.id}', '${boss.name}')"
+                         title="${isTemp ? '⚡ 本週臨時時間' : '📅 常態出團時間'}：${scheduleFormatted}（點擊查看詳情）">
+                      ${tagIcon}
                     </div>
                   `;
                 }
@@ -267,9 +271,9 @@
                       ontouchcancel="handleCellTouchEnd(event)"
                       title="${cellTitle}">
                     ${shardTagHtml}
+                    ${scheduleTagHtml}
                     <div class="boss-name">${bossDisplayName}</div>
                     <div class="party-members">${displayTeamText}</div>
-                    ${scheduleBadgeHtml}
                   </div>
                 `
                 });
@@ -418,3 +422,73 @@
 
     container.innerHTML = guestSectionHTML;
   }
+
+  // ==========================================
+  // 出團時間詳情彈窗
+  // ==========================================
+  window.showTeamScheduleInfo = function(teamId, bossName) {
+    const team = window.store.teams[teamId];
+    if (!team) return;
+    const effectiveSchedule = getTeamEffectiveSchedule(team);
+    if (!effectiveSchedule) return;
+
+    const scheduleFormatted = formatScheduleDisplay(effectiveSchedule);
+    const isTemp = effectiveSchedule.isTemp;
+    const timeType = isTemp ? "⚡ 本週臨時時間" : "📅 常態固定時間";
+    
+    // 獲取隊友名字
+    const memberNames = (team.memberTargets || [])
+      .map(t => getCharName(t.charId))
+      .join("、");
+
+    // 建立動態 Modal
+    const modalId = "tempScheduleInfoModal";
+    let oldModal = document.getElementById(modalId);
+    if (oldModal) oldModal.remove();
+
+    const modal = document.createElement("div");
+    modal.id = modalId;
+    modal.className = "modal";
+    modal.style.display = "flex"; // 直接 flex 居中顯示
+    
+    // 內容重用原專案的 modal-content 類別，使其 100% 完美支援深色模式切換
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 380px; text-align: left; position: relative;">
+        <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 16px; display: flex; align-items: center; gap: 6px; color: var(--title-color);">
+          ⏰ 出團時間資訊
+        </h3>
+        <div style="margin-bottom: 14px; font-size: 13px; line-height: 1.6; color: var(--text-main);">
+          <div style="margin-bottom: 8px;">
+            <strong>👾 BOSS 關卡：</strong><span>${bossName}</span>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <strong>⏱️ 出團時間：</strong><span style="color: #0284c7; font-weight: bold;">${scheduleFormatted}</span>
+          </div>
+          <div style="margin-bottom: 8px;">
+            <strong>🏷️ 時間類型：</strong>
+            <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: ${isTemp ? 'rgba(217, 119, 6, 0.12)' : 'rgba(2, 132, 199, 0.12)'}; color: ${isTemp ? '#d97706' : '#0284c7'}; border: 1px solid ${isTemp ? 'rgba(217, 119, 6, 0.3)' : 'rgba(2, 132, 199, 0.3)'}; font-weight: bold;">
+              ${timeType}
+            </span>
+          </div>
+          <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
+            <strong style="display: block; margin-bottom: 6px; color: var(--title-color);">👥 隊伍成員 (${team.memberTargets.length} 人)：</strong>
+            <div style="background: var(--char-card-bg); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; word-break: break-all; color: var(--text-main); max-height: 100px; overflow-y: auto;">
+              ${memberNames}
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+          <button class="btn" id="closeTempScheduleBtn">關閉</button>
+        </div>
+      </div>
+    `;
+
+    // 點擊關閉按鈕或點擊背景即可關閉
+    modal.querySelector("#closeTempScheduleBtn").onclick = () => modal.remove();
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.remove();
+    };
+
+    document.body.appendChild(modal);
+  };
+
