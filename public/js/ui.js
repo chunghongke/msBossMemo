@@ -810,19 +810,28 @@ window.saveEditCharBosses = function() {
 // ==========================================
 
 (function setupModalScrollLock() {
-  function isAnyModalOpen() {
-    return Array.from(document.querySelectorAll(".modal")).some(m => {
-      const displayValue = m.style.display || getComputedStyle(m).display;
-      return displayValue && displayValue !== "none";
-    });
+  function init() {
+    if (!document.body) return;
+    function isAnyModalOpen() {
+      return Array.from(document.querySelectorAll(".modal")).some(m => {
+        const displayValue = m.style.display || getComputedStyle(m).display;
+        return displayValue && displayValue !== "none";
+      });
+    }
+
+    function updateBodyScrollLock() {
+      document.body.classList.toggle("modal-open-lock", isAnyModalOpen());
+    }
+
+    const observer = new MutationObserver(updateBodyScrollLock);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["style"], subtree: true });
+
+    updateBodyScrollLock();
   }
 
-  function updateBodyScrollLock() {
-    document.body.classList.toggle("modal-open-lock", isAnyModalOpen());
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
   }
-
-  const observer = new MutationObserver(updateBodyScrollLock);
-  observer.observe(document.body, { attributes: true, attributeFilter: ["style"], subtree: true });
-
-  updateBodyScrollLock();
 })();
