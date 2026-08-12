@@ -545,21 +545,24 @@
     .shard-suggested-tag:hover {
       filter: brightness(1.1);
     }
+    .shard-editor-select,
     .shard-editor-input {
-      width: 56px;
-      padding: 4px 6px;
+      width: 72px;
+      padding: 5px 8px;
       border-radius: 6px;
       border: 1px solid var(--border-color);
       background: var(--input-bg, #fff);
       color: var(--text-main);
       text-align: center;
       font-size: 14px;
+      cursor: pointer;
+      outline: none;
     }
     .shard-editor-guest-row {
       opacity: 0.85;
     }
     .shard-editor-guest-value {
-      width: 56px;
+      width: 72px;
       text-align: center;
       font-size: 14px;
       font-weight: bold;
@@ -1826,12 +1829,19 @@
       const suggestedTag = (m.suggested !== null && m.suggested !== m.value)
         ? `<span class="shard-suggested-tag" onclick="applySuggestedShare(${idx})" title="點一下套用建議份數">建議 ${m.suggested} 份</span>`
         : '';
+
+      let optionsHtml = '';
+      for (let i = 0; i <= maxPartySize; i++) {
+        const isSelected = (m.value === i) ? 'selected' : '';
+        optionsHtml += `<option value="${i}" ${isSelected}>${i} 份</option>`;
+      }
+
       html += `
         <div class="shard-editor-row">
           <div class="shard-editor-name">${m.name}<span class="shard-editor-lastweek">${lastWeekLabel}</span>${suggestedTag}</div>
-          <input type="number" min="0" max="${maxPartySize}" step="1" value="${m.value}"
-                 class="shard-editor-input"
-                 oninput="updateShardMemberValue(${idx}, this.value)">
+          <select class="shard-editor-select" onchange="updateShardMemberValue(${idx}, this.value)">
+            ${optionsHtml}
+          </select>
         </div>
       `;
     });
