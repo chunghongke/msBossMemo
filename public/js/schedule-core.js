@@ -136,9 +136,22 @@ function checkRaidReminders() {
       try {
         const notif = new Notification(`⏰ ${tempPrefix}出團提醒：【${bossName}】即將開始！`, {
           body: `預定開打：${remainingDesc}\n隊伍成員：${memberNames}`,
-          icon: "notification.png"
+          icon: "notification.png",
+          requireInteraction: true // 保持通知常駐
         });
-        notif.onclick = function() { window.focus(); notif.close(); };
+        notif.onclick = function() { 
+          window.focus(); 
+          if (window.stopNotificationChime) {
+            window.stopNotificationChime();
+          }
+          notif.close(); 
+        };
+        // 系統上手動點 X 關閉通知時，也停止音樂
+        notif.onclose = function() {
+          if (window.stopNotificationChime) {
+            window.stopNotificationChime();
+          }
+        };
 
         if (soundEnabled) playNotificationChime();
 

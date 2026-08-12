@@ -82,6 +82,9 @@ window.openNotificationModal = function() {
 
 window.closeNotificationModal = function() {
   document.getElementById("notificationModal").style.display = "none";
+  if (window.stopNotificationChime) {
+    window.stopNotificationChime();
+  }
 };
 
 window.handleNotificationToggle = async function(checked) {
@@ -165,7 +168,54 @@ function updateNotificationUI() {
   }
 }
 
-function playNotificationChime() {
+window.currentChimeAudio = null;
+
+window.stopNotificationChime = function() {
+  if (window.currentChimeAudio) {
+    try {
+      window.currentChimeAudio.pause();
+      window.currentChimeAudio.currentTime = 0; // 重設播放進度
+      console.log("出團提醒音樂已停止。");
+    } catch (e) {
+      console.warn("停止音樂失敗:", e);
+    }
+    window.currentChimeAudio = null;
+  }
+};
+
+window.playNotificationChime = function() {
+  // 播放前，如果上一次的歌還在播，先停止，防止聲音重疊
+  window.stopNotificationChime();
+
+  try {
+    const customAudio = new Audio("chime.mp3");
+    customAudio.volume = 0.5; // 預設 50% 音量
+    
+    // 儲存到全域變數，以便隨時停止
+    window.currentChimeAudio = customAudio;
+    
+    // 如果檔案載入錯誤 (例如 chime.mp3 不存在)，fallback 到預設水晶音效
+    customAudio.onerror = function() {
+      window.currentChimeAudio = null;
+      playDefaultSynthesizedChime();
+    };
+
+    // 嘗試播放
+    const playPromise = customAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        // 捕捉瀏覽器自動播放限制或找不到檔案錯誤
+        window.currentChimeAudio = null;
+        playDefaultSynthesizedChime();
+      });
+    }
+  } catch (err) {
+    window.currentChimeAudio = null;
+    playDefaultSynthesizedChime();
+  }
+};
+
+function playDefaultSynthesizedChime() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
@@ -204,9 +254,21 @@ window.testSendNotification = async function() {
 
   const notif = new Notification("🔔 BossParty 出團推播測試成功！", {
     body: "當有隊伍即將開打時，Windows 將會在此處跳出通知並播放鈴聲。",
-    icon: "notification.png"
+    icon: "notification.png",
+    requireInteraction: true // 保持通知常駐在右下角，直到使用者手動關閉或點擊
   });
-  notif.onclick = function() { window.focus(); notif.close(); };
+  
+  // 點擊通知橫幅時，立刻關閉通知並停止音樂
+  notif.onclick = function() { 
+    window.focus(); 
+    window.stopNotificationChime();
+    notif.close(); 
+  };
+
+  // 從 Windows 系統通知點擊「X」手動關閉時，也立刻停止音樂
+  notif.onclose = function() {
+    window.stopNotificationChime();
+  };
 
   if (document.getElementById("notifSoundToggle").checked) {
     playNotificationChime();
