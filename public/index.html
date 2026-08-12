@@ -501,45 +501,89 @@
       filter: none;
     }
 
-    /* 艾里溫碎片：份數選擇彈窗內的份數按鈕 */
+    /* 艾里溫碎片：份數選擇彈窗（整隊一次填） */
     .shard-share-options {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
       margin: 14px 0;
     }
-    .shard-share-btn {
-      flex: 1 1 60px;
-      padding: 10px 6px;
+    .shard-editor-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .shard-editor-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
       border-radius: 8px;
-      border: 1px solid var(--border-color);
       background: var(--bg-not-completed);
-      color: var(--text-not-completed);
-      cursor: pointer;
-      text-align: center;
+    }
+    .shard-editor-name {
       font-size: 13px;
-      transition: all 0.12s ease-in-out;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
     }
-    .shard-share-btn .shard-share-amount {
-      display: block;
+    .shard-editor-lastweek {
       font-size: 11px;
-      font-weight: normal;
-      margin-top: 2px;
-      opacity: 0.8;
-    }
-    .shard-share-btn:hover {
-      border-color: #0ea5e9;
-    }
-    .shard-share-btn.selected {
-      background: #0ea5e9;
-      border-color: #0ea5e9;
-      color: #fff;
-      font-weight: bold;
-    }
-    .shard-last-week-hint {
-      font-size: 12px;
       color: var(--text-muted);
-      margin-bottom: 4px;
+      font-weight: normal;
+    }
+    .shard-suggested-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: bold;
+      background: #f59e0b;
+      color: #fff;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 6px;
+      cursor: pointer;
+      vertical-align: middle;
+    }
+    .shard-suggested-tag:hover {
+      filter: brightness(1.1);
+    }
+    .shard-editor-input {
+      width: 56px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg, #fff);
+      color: var(--text-main);
+      text-align: center;
+      font-size: 14px;
+    }
+    .shard-editor-guest-row {
+      opacity: 0.85;
+    }
+    .shard-editor-guest-value {
+      width: 56px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--text-muted);
+    }
+    .shard-editor-total {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .shard-editor-total.valid {
+      background: rgba(34, 197, 94, 0.15);
+      color: #16a34a;
+    }
+    .shard-editor-total.invalid {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+    #shardConfirmBtn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     /* ==========================================
@@ -1716,10 +1760,10 @@
     saveStoreToCloud();
   }
 
-  // ==================== 艾里溫碎片：份數選擇彈窗 ====================
+  // ==================== 艾里溫碎片：份數選擇彈窗（一次填完整隊） ====================
   let editingShardRecordKey = null;
   let shardModalPendingComplete = false; // true 代表：按下確定時，除了寫份數，還要一起把完成狀態設為 true
-  let pendingShardShareValue = null; // 目前選取中、但還沒真的存進去的份數
+  let shardModalMembers = []; // [{ charId, entryIndex, recordKey, name, value, lastWeek }] 正式角色清單，Guest 不在這裡面（份數用剩下的自動算）
 
   window.openShardShareModal = function(recordKey, pendingComplete) {
     const record = window.store.weeklyRecords ? window.store.weeklyRecords[recordKey] : null;
@@ -1730,47 +1774,140 @@
 
     editingShardRecordKey = recordKey;
     shardModalPendingComplete = !!pendingComplete;
-    pendingShardShareValue = record.shardShares !== null && record.shardShares !== undefined ? record.shardShares : null;
 
     const maxPartySize = boss.maxPartySize || 1;
     const unitShare = boss.erionVestiges / maxPartySize;
 
     const titleEl = document.getElementById("shardShareTitle");
-    if (titleEl) titleEl.innerText = `🔹 ${boss.name} - 選擇這次撿取的艾里溫碎片份數`;
+    if (titleEl) titleEl.innerText = `🔹 ${boss.name} - 分配這次撿取的艾里溫碎片份數`;
 
-    const hintEl = document.getElementById("shardLastWeekHint");
-    if (hintEl) {
-      if (record.lastWeekShardShares !== null && record.lastWeekShardShares !== undefined) {
-        hintEl.innerText = `💡 上週你在這隻 BOSS 撿了 ${record.lastWeekShardShares} 份，記得跟隊友喬好這週的份數～`;
-        hintEl.style.display = "block";
-      } else {
-        hintEl.style.display = "none";
-      }
-    }
+    const team = window.store.teams ? window.store.teams[record.teamId] : null;
+    const rawMembers = team ? (team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id, entryIndex: record.entryIndex }))) : [];
+    const validMembers = rawMembers.filter(m => {
+      if (!m.charId.startsWith("guest_")) return true;
+      return window.store.guests && window.store.guests.some(g => g.id === m.charId);
+    });
 
-    renderShardShareOptions(boss, unitShare);
+    const formalMembers = validMembers.filter(m => !m.charId.startsWith("guest_"));
+    const guestCount = validMembers.length - formalMembers.length;
+    const fairAverage = maxPartySize / (validMembers.length || 1);
+
+    // 每個正式角色的初始值：優先用他自己已經存的 shardShares，沒有的話用公平平均值（四捨五入）當起點
+    shardModalMembers = formalMembers.map(m => {
+      const memberRecKey = `rec_${m.charId}_${boss.id}_${m.entryIndex}`;
+      const memberRec = window.store.weeklyRecords ? window.store.weeklyRecords[memberRecKey] : null;
+      const currentValue = memberRec && memberRec.shardShares !== null && memberRec.shardShares !== undefined
+        ? memberRec.shardShares
+        : Math.round(fairAverage);
+      const lastWeek = memberRec && memberRec.lastWeekShardShares !== null && memberRec.lastWeekShardShares !== undefined
+        ? memberRec.lastWeekShardShares
+        : null;
+      // 建議份數：上週拿得比公平平均多的人，這週建議少拿一點；拿得比較少的人建議多拿一點（沒有上週紀錄就不給建議）
+      const suggested = lastWeek !== null
+        ? (lastWeek > fairAverage ? Math.floor(fairAverage) : Math.ceil(fairAverage))
+        : null;
+      return { charId: m.charId, entryIndex: m.entryIndex, recordKey: memberRecKey, name: getCharName(m.charId), value: currentValue, lastWeek, suggested };
+    });
+
+    renderShardShareEditor(boss, guestCount);
 
     const modal = document.getElementById("shardShareModal");
     if (modal) modal.style.display = "flex";
   };
 
-  function renderShardShareOptions(boss, unitShare) {
+  function renderShardShareEditor(boss, guestCount) {
     const maxPartySize = boss.maxPartySize || 1;
-    const optionsContainer = document.getElementById("shardShareOptions");
-    if (!optionsContainer) return;
+    const container = document.getElementById("shardShareOptions");
+    if (!container) return;
 
-    let html = "";
-    for (let i = 0; i <= maxPartySize; i++) {
-      const isSelected = pendingShardShareValue === i;
-      const label = i === 0 ? "0 份（這次讓給隊友）" : `${i} 份`;
+    let html = `<div class="shard-editor-list">`;
+    shardModalMembers.forEach((m, idx) => {
+      const lastWeekLabel = m.lastWeek !== null ? `上週 ${m.lastWeek} 份` : "上週無紀錄";
+      const suggestedTag = (m.suggested !== null && m.suggested !== m.value)
+        ? `<span class="shard-suggested-tag" onclick="applySuggestedShare(${idx})" title="點一下套用建議份數">建議 ${m.suggested} 份</span>`
+        : '';
       html += `
-        <div class="shard-share-btn ${isSelected ? 'selected' : ''}" onclick="pickShardShare(${i})">
-          ${label}
-          <span class="shard-share-amount">${formatShardNumber(unitShare * i)}</span>
+        <div class="shard-editor-row">
+          <div class="shard-editor-name">${m.name}<span class="shard-editor-lastweek">${lastWeekLabel}</span>${suggestedTag}</div>
+          <input type="number" min="0" max="${maxPartySize}" step="1" value="${m.value}"
+                 class="shard-editor-input"
+                 oninput="updateShardMemberValue(${idx}, this.value)">
+        </div>
+      `;
+    });
+
+    if (guestCount > 0) {
+      html += `
+        <div class="shard-editor-row shard-editor-guest-row">
+          <div class="shard-editor-name">Guest（共 ${guestCount} 位）<span class="shard-editor-lastweek">沒有自己的紀錄，拿剩下的份數</span></div>
+          <div class="shard-editor-guest-value" id="shardGuestRemainder">-</div>
         </div>
       `;
     }
-    optionsContainer.innerHTML = html;
+
+    html += `</div><div class="shard-editor-total" id="shardEditorTotal"></div>`;
+    container.innerHTML = html;
+
+    updateShardEditorTotal(boss, guestCount);
+  }
+
+  window.updateShardMemberValue = function(idx, rawValue) {
+    if (!editingShardRecordKey) return;
+    const record = window.store.weeklyRecords[editingShardRecordKey];
+    if (!record) return;
+    const boss = window.config.bosses.find(b => b.id === record.bossId);
+    if (!boss) return;
+
+    const n = parseInt(rawValue, 10);
+    shardModalMembers[idx].value = isNaN(n) ? 0 : Math.max(0, n);
+
+    const team = window.store.teams[record.teamId];
+    const rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id }));
+    const guestCount = rawMembers.filter(m => m.charId.startsWith("guest_")).length;
+
+    updateShardEditorTotal(boss, guestCount);
+  };
+
+  // 點「建議」標籤：直接把該成員的份數改成建議值，並重繪整個編輯區（含輸入框顯示值跟總計）
+  window.applySuggestedShare = function(idx) {
+    if (!editingShardRecordKey) return;
+    const record = window.store.weeklyRecords[editingShardRecordKey];
+    if (!record) return;
+    const boss = window.config.bosses.find(b => b.id === record.bossId);
+    if (!boss) return;
+
+    const m = shardModalMembers[idx];
+    if (!m || m.suggested === null || m.suggested === undefined) return;
+    m.value = m.suggested;
+
+    const team = window.store.teams[record.teamId];
+    const rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id }));
+    const guestCount = rawMembers.filter(mm => mm.charId.startsWith("guest_")).length;
+
+    renderShardShareEditor(boss, guestCount);
+  };
+
+  function updateShardEditorTotal(boss, guestCount) {
+    const maxPartySize = boss.maxPartySize || 1;
+    const formalTotal = shardModalMembers.reduce((sum, m) => sum + (m.value || 0), 0);
+    const remainder = maxPartySize - formalTotal;
+
+    const guestEl = document.getElementById("shardGuestRemainder");
+    if (guestEl) guestEl.innerText = remainder >= 0 ? `${remainder} 份` : `⚠️ 超過`;
+
+    const totalEl = document.getElementById("shardEditorTotal");
+    let isValid;
+    if (guestCount > 0) {
+      isValid = remainder >= 0;
+      if (totalEl) totalEl.innerText = `正式角色合計 ${formalTotal} 份 + Guest ${Math.max(remainder, 0)} 份 = ${formalTotal + Math.max(remainder, 0)} / ${maxPartySize} 份`;
+    } else {
+      isValid = formalTotal === maxPartySize;
+      if (totalEl) totalEl.innerText = `目前合計 ${formalTotal} / ${maxPartySize} 份`;
+    }
+    if (totalEl) totalEl.className = "shard-editor-total " + (isValid ? "valid" : "invalid");
+
+    const confirmBtn = document.getElementById("shardConfirmBtn");
+    if (confirmBtn) confirmBtn.disabled = !isValid;
   }
 
   window.closeShardShareModal = function() {
@@ -1778,11 +1915,11 @@
     if (modal) modal.style.display = "none";
     editingShardRecordKey = null;
     shardModalPendingComplete = false;
-    pendingShardShareValue = null;
+    shardModalMembers = [];
   };
 
-  // 點選項目：只是切換目前選取中的份數，還不會存檔
-  window.pickShardShare = function(n) {
+  // 按下「確定」才真的寫入：每個正式角色各自的份數，以及（如果是完成流程觸發的）一起把整隊的完成狀態設為 true
+  window.confirmShardShare = function() {
     if (!editingShardRecordKey) return;
     const record = window.store.weeklyRecords[editingShardRecordKey];
     if (!record) return;
@@ -1790,31 +1927,37 @@
     const boss = window.config.bosses.find(b => b.id === record.bossId);
     if (!boss) return;
 
-    pendingShardShareValue = n;
-    renderShardShareOptions(boss, boss.erionVestiges / (boss.maxPartySize || 1));
-  };
+    const maxPartySize = boss.maxPartySize || 1;
+    const formalTotal = shardModalMembers.reduce((sum, m) => sum + (m.value || 0), 0);
 
-  // 按下「確定」才真的寫入：份數，以及（如果是完成流程觸發的）一起把整隊的完成狀態設為 true
-  window.confirmShardShare = function() {
-    if (!editingShardRecordKey) return;
-    const record = window.store.weeklyRecords[editingShardRecordKey];
-    if (!record) return;
+    const team = window.store.teams[record.teamId];
+    const rawMembers = team.memberTargets || (team.memberCharIds || []).map(id => ({ charId: id }));
+    const guestCount = rawMembers.filter(m => m.charId.startsWith("guest_")).length;
 
-    if (pendingShardShareValue === null) {
-      alert("請先選擇這次撿取的份數！");
+    if (guestCount > 0) {
+      if (formalTotal > maxPartySize) {
+        alert(`正式角色的份數加起來（${formalTotal}）已經超過總份數（${maxPartySize}）了，請調整！`);
+        return;
+      }
+    } else if (formalTotal !== maxPartySize) {
+      alert(`份數合計要剛好等於 ${maxPartySize} 份，目前是 ${formalTotal} 份，請調整！`);
       return;
     }
 
-    const n = pendingShardShareValue;
+    // 有人這次選的份數跟自己上週一樣，二次確認一下
+    const sameAsLastWeekNames = shardModalMembers
+      .filter(m => m.lastWeek !== null && m.lastWeek === m.value)
+      .map(m => m.name);
 
-    // 💡 選到跟上週一樣的份數時，二次確認一下，避免忘記上週已經拿比較多份、這週又選一樣的
-    const isSameAsLastWeek = record.lastWeekShardShares !== null && record.lastWeekShardShares !== undefined && record.lastWeekShardShares === n;
-    if (isSameAsLastWeek) {
-      const confirmed = confirm(`你上週也是選 ${n} 份，連續兩週選一樣的份數可能會讓隊友分配不公平，確定要維持這個選擇嗎？`);
+    if (sameAsLastWeekNames.length > 0) {
+      const confirmed = confirm(`${sameAsLastWeekNames.join("、")} 這次選的份數跟上週一樣，連續兩週一樣可能會讓分配不公平，確定要維持嗎？`);
       if (!confirmed) return;
     }
 
-    record.shardShares = n;
+    shardModalMembers.forEach(m => {
+      const memberRec = window.store.weeklyRecords[m.recordKey];
+      if (memberRec) memberRec.shardShares = m.value;
+    });
 
     if (shardModalPendingComplete) {
       Object.values(window.store.weeklyRecords).forEach(r => {
@@ -3304,13 +3447,12 @@
 
   <!-- 艾里溫碎片：份數選擇 Modal -->
   <div id="shardShareModal" class="modal">
-    <div class="modal-content" style="max-width: 380px; text-align: left;">
-      <h3 id="shardShareTitle" style="margin-top: 0; margin-bottom: 8px; font-size: 16px;">🔹 選擇這次撿取的艾里溫碎片份數</h3>
-      <div id="shardLastWeekHint" class="shard-last-week-hint" style="display: none;"></div>
+    <div class="modal-content" style="max-width: 420px; text-align: left;">
+      <h3 id="shardShareTitle" style="margin-top: 0; margin-bottom: 8px; font-size: 16px;">🔹 分配這次撿取的艾里溫碎片份數</h3>
       <div id="shardShareOptions" class="shard-share-options"></div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn btn-secondary" onclick="closeShardShareModal()">取消</button>
-        <button class="btn" onclick="confirmShardShare()">確定</button>
+        <button class="btn" id="shardConfirmBtn" onclick="confirmShardShare()">確定</button>
       </div>
     </div>
   </div>
