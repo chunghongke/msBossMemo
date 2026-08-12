@@ -910,3 +910,15 @@
         text-align: center;
       }
     }
+
+    /* 雙欄 Modal 響應式排版修正 */
+    @media (max-width: 640px) {
+      .modal-grid-divider {
+        border-left: none !important;
+        border-top: 1px solid var(--border-color);
+        padding-left: 0 !important;
+        padding-top: 16px;
+        margin-top: 8px;
+      }
+    }
+

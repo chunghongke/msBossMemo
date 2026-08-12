@@ -282,92 +282,119 @@
 
   <!-- 個人化 Windows 出團提醒設定 Modal -->
   <div id="notificationModal" class="modal" onclick="handleOverlayClick(event, closeNotificationModal)">
-    <div class="modal-content" style="max-width: 480px; text-align: left;">
+    <div class="modal-content" style="max-width: 800px; width: 95%; text-align: left;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <h3 style="margin: 0; font-size: 16px; display: flex; align-items: center; gap: 6px;">🔔 Windows 出團推播提醒</h3>
         <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="closeNotificationModal()">✕</button>
       </div>
-      <p style="font-size: 12px; color: var(--text-muted); margin-top: 0; margin-bottom: 14px; line-height: 1.5;">
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 0; margin-bottom: 16px; line-height: 1.5;">
         只要瀏覽器開著（即使最小化或在背景玩遊戲），系統會在出團前透過 Windows 原生通知橫幅與鈴聲提醒您。此設定僅儲存於此裝置，不會打擾其他隊友。
       </p>
 
-      <div style="background: var(--bg-hover); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 14px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-weight: bold; font-size: 14px;">啟用 Windows 系統推播提醒</div>
-            <div id="notifPermissionStatus" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">未啟用</div>
+      <!-- 左右雙欄排版容器 -->
+      <div class="modal-grid" style="display: flex; gap: 24px; flex-wrap: wrap;">
+        
+        <!-- 左半邊：推播提醒設定 -->
+        <div style="flex: 1.2; min-width: 280px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: var(--bg-hover); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: bold; font-size: 14px;">啟用 Windows 系統推播提醒</div>
+                <div id="notifPermissionStatus" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">未啟用</div>
+              </div>
+              <label class="notif-switch">
+                <input type="checkbox" id="notifEnabledToggle" onchange="handleNotificationToggle(this.checked)">
+                <span class="notif-slider"></span>
+              </label>
+            </div>
           </div>
-          <label class="notif-switch">
-            <input type="checkbox" id="notifEnabledToggle" onchange="handleNotificationToggle(this.checked)">
-            <span class="notif-slider"></span>
-          </label>
+
+          <div id="notifDetailSettings" style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="font-size: 13px; font-weight: bold;">提前提醒時機：</label>
+              <select id="notifLeadTimeSelect" onchange="saveNotificationPreferences()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 13px;">
+                <option value="0">準時出團當下</option>
+                <option value="5">出團前 5 分鐘</option>
+                <option value="10">出團前 10 分鐘</option>
+                <option value="15" selected>出團前 15 分鐘（推薦）</option>
+                <option value="30">出團前 30 分鐘</option>
+                <option value="60">出團前 1 小時</option>
+              </select>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="font-size: 13px; font-weight: bold;">提示音效：</label>
+              <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="notifSoundToggle" onchange="saveNotificationPreferences()" checked>
+                開啟通知鈴聲
+              </label>
+            </div>
+
+            <div style="border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 4px;">
+              <label style="font-size: 13px; font-weight: bold; display: block; margin-bottom: 8px;">提醒鈴聲選擇：</label>
+              <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <input type="radio" name="notifSoundType" value="short" onchange="handleSoundTypeChange('short')" checked>
+                  🎵 預設短音效 (三槍 / chime_short.mp3)
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <input type="radio" name="notifSoundType" value="long" onchange="handleSoundTypeChange('long')">
+                  🎵 預設長音效 (山羌小曲 / chime_long.mp3)
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <input type="radio" name="notifSoundType" value="custom" onchange="handleSoundTypeChange('custom')">
+                  📁 使用自訂本地 MP3 音訊檔
+                </label>
+              </div>
+
+              <!-- 自訂上傳面板，僅在選擇 custom 時顯示 -->
+              <div id="customAudioUploadArea" style="display: none; padding-left: 12px; border-left: 2px solid var(--primary-color); margin-top: 8px; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <button class="btn" onclick="document.getElementById('customAudioFileInput').click()" style="padding: 6px 12px; font-size: 12px; background: var(--border-color); border: 1px solid var(--border-color); color: var(--text-color); margin: 0;">
+                    選擇本地 MP3
+                  </button>
+                  <input type="file" id="customAudioFileInput" accept="audio/mpeg,audio/mp3" style="display: none;" onchange="handleCustomAudioUpload(event)">
+                  <button id="clearCustomAudioBtn" class="btn" onclick="handleClearCustomAudio()" style="padding: 6px 12px; font-size: 12px; background: #ef4444; border: 1px solid #ef4444; color: #fff; display: none; margin: 0;">
+                    🗑️ 清除自訂
+                  </button>
+                </div>
+                <div id="customAudioStatusText" style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+                  目前狀態：未上傳本地自訂鈴聲
+                </div>
+              </div>
+            </div>
+
+            <div style="border-top: 1px dashed var(--border-color); padding-top: 12px;">
+              <label style="font-size: 13px; font-weight: bold; display: block; margin-bottom: 6px;">提醒範圍：</label>
+              <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <input type="radio" name="notifScope" value="primary" onchange="saveNotificationPreferences()" checked>
+                  ⭐ 僅提醒我的角色（主要玩家）有參加的隊伍
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <input type="radio" name="notifScope" value="all" onchange="saveNotificationPreferences()">
+                  🌐 提醒全體所有排定的隊伍
+                </label>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+              <button class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;" onclick="testSendNotification()">🔔 測試發送推播與音效</button>
+            </div>
+          </div>
         </div>
+
+        <!-- 右半邊：排程隊伍總覽 -->
+        <div class="modal-grid-divider" style="flex: 0.8; min-width: 260px; display: flex; flex-direction: column; border-left: 1px solid var(--border-color); padding-left: 20px;">
+          <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">📅 本週已排程隊伍總覽：</div>
+          <div id="notifScheduleList" style="flex: 1; max-height: 380px; min-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 12px; padding-right: 4px;">
+            <!-- 動態渲染本週所有排程隊伍 -->
+          </div>
+        </div>
+
       </div>
 
-      <div id="notifDetailSettings" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <label style="font-size: 13px; font-weight: bold;">提前提醒時機：</label>
-          <select id="notifLeadTimeSelect" onchange="saveNotificationPreferences()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 13px;">
-            <option value="0">準時出團當下</option>
-            <option value="5">出團前 5 分鐘</option>
-            <option value="10">出團前 10 分鐘</option>
-            <option value="15" selected>出團前 15 分鐘（推薦）</option>
-            <option value="30">出團前 30 分鐘</option>
-            <option value="60">出團前 1 小時</option>
-          </select>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <label style="font-size: 13px; font-weight: bold;">提示音效：</label>
-          <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
-            <input type="checkbox" id="notifSoundToggle" onchange="saveNotificationPreferences()" checked>
-            開啟通知鈴聲
-          </label>
-        </div>
-
-        <div style="border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 6px;">
-          <label style="font-size: 13px; font-weight: bold; display: block; margin-bottom: 6px;">自訂個人提醒鈴聲 (.mp3)：</label>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <button class="btn" onclick="document.getElementById('customAudioFileInput').click()" style="padding: 6px 12px; font-size: 12px; background: var(--border-color); border: 1px solid var(--border-color); color: var(--text-color); margin: 0;">
-              📁 選擇本地 MP3 檔案
-            </button>
-            <input type="file" id="customAudioFileInput" accept="audio/mpeg,audio/mp3" style="display: none;" onchange="handleCustomAudioUpload(event)">
-            <button id="clearCustomAudioBtn" class="btn" onclick="handleClearCustomAudio()" style="padding: 6px 12px; font-size: 12px; background: #ef4444; border: 1px solid #ef4444; color: #fff; display: none; margin: 0;">
-              🗑️ 清除自訂
-            </button>
-          </div>
-          <div id="customAudioStatusText" style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
-            目前狀態：使用系統預設音效
-          </div>
-        </div>
-
-        <div>
-          <label style="font-size: 13px; font-weight: bold; display: block; margin-bottom: 6px;">提醒範圍：</label>
-          <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
-            <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
-              <input type="radio" name="notifScope" value="primary" onchange="saveNotificationPreferences()" checked>
-              ⭐ 僅提醒我的角色（主要玩家）有參加的隊伍
-            </label>
-            <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
-              <input type="radio" name="notifScope" value="all" onchange="saveNotificationPreferences()">
-              🌐 提醒全體所有排定的隊伍
-            </label>
-          </div>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
-          <button class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;" onclick="testSendNotification()">🔔 測試發送推播與音效</button>
-        </div>
-      </div>
-
-      <div style="border-top: 1px solid var(--border-color); padding-top: 12px;">
-        <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px;">📅 本週已排程隊伍總覽：</div>
-        <div id="notifScheduleList" style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
-          <!-- 動態渲染本週所有排程隊伍 -->
-        </div>
-      </div>
-
-      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
         <button class="btn" onclick="closeNotificationModal()">完成</button>
       </div>
     </div>

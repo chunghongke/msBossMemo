@@ -5,6 +5,8 @@
  * 依賴 schedule-core.js 中宣告的 NOTIF_... 等常數
  */
 
+const NOTIF_SOUND_TYPE_KEY = "maple_notif_sound_type";
+
 // 初始化 IndexedDB 本地大容量資料庫，用以避開 localStorage 的 5MB 限制
 function initIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -254,50 +256,60 @@ window.playNotificationChime = async function() {
   // 播放前，如果上一次的歌還在播，先停止，防止聲音重疊
   window.stopNotificationChime();
 
-  try {
-    // 1. 嘗試從 IndexedDB 讀取本地自訂音效
-    const record = await getCustomAudioBlob();
-    if (record && record.blob) {
-      console.log("偵測到本地自訂音效，嘗試播放:", record.name);
-      const audioUrl = URL.createObjectURL(record.blob);
-      const customAudio = new Audio(audioUrl);
-      customAudio.volume = 0.5;
-      
-      window.currentChimeAudio = customAudio;
-      
-      customAudio.onerror = function() {
-        console.warn("本地自訂音訊播放出錯，Fallback 到伺服器音檔。");
-        window.currentChimeAudio = null;
-        URL.revokeObjectURL(audioUrl); // 釋放記憶體
-        playServerChime();
-      };
-      
-      const playPromise = customAudio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(e => {
-          window.currentChimeAudio = null;
-          URL.revokeObjectURL(audioUrl);
-          playServerChime();
-        });
-      }
-      return; // 成功播放本地，直接返回
-    }
-  } catch (err) {
-    console.warn("讀取 IndexedDB 本地音效失敗，將使用預設路徑:", err);
-  }
+  const soundType = localStorage.getItem(NOTIF_SOUND_TYPE_KEY) || "short";
 
-  // 2. 如果沒有自訂本地音效，改播伺服器上的 chime.mp3 或水晶音效
-  playServerChime();
+  if (soundType === "custom") {
+    try {
+      // 1. 嘗試從 IndexedDB 讀取本地自訂音效
+      const record = await getCustomAudioBlob();
+      if (record && record.blob) {
+        console.log("偵測到本地自訂音效，嘗試播放:", record.name);
+        const audioUrl = URL.createObjectURL(record.blob);
+        const customAudio = new Audio(audioUrl);
+        customAudio.volume = 0.5;
+        
+        window.currentChimeAudio = customAudio;
+        
+        customAudio.onerror = function() {
+          console.warn("本地自訂音訊播放出錯，Fallback 到預設短音檔。");
+          window.currentChimeAudio = null;
+          URL.revokeObjectURL(audioUrl); // 釋放記憶體
+          playServerChime("chime_short.mp3");
+        };
+        
+        const playPromise = customAudio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => {
+            window.currentChimeAudio = null;
+            URL.revokeObjectURL(audioUrl);
+            playServerChime("chime_short.mp3");
+          });
+        }
+        return; // 成功播放本地，直接返回
+      } else {
+        console.warn("未上傳自訂本地鈴聲，Fallback 到預設短音檔。");
+        playServerChime("chime_short.mp3");
+      }
+    } catch (err) {
+      console.warn("讀取 IndexedDB 本地音效失敗，將使用預設短音效:", err);
+      playServerChime("chime_short.mp3");
+    }
+  } else if (soundType === "long") {
+    playServerChime("chime_long.mp3");
+  } else {
+    playServerChime("chime_short.mp3");
+  }
 };
 
-function playServerChime() {
+function playServerChime(fileName) {
   try {
-    const serverAudio = new Audio("chime.mp3");
+    const serverAudio = new Audio(fileName);
     serverAudio.volume = 0.5;
     
     window.currentChimeAudio = serverAudio;
     
     serverAudio.onerror = function() {
+      console.warn(`載入伺服器音檔 ${fileName} 失敗，使用預設水晶提示音。`);
       window.currentChimeAudio = null;
       playDefaultSynthesizedChime();
     };
@@ -314,6 +326,15 @@ function playServerChime() {
     playDefaultSynthesizedChime();
   }
 }
+
+// 變更鈴聲類型 Radio 處理
+window.handleSoundTypeChange = function(type) {
+  localStorage.setItem(NOTIF_SOUND_TYPE_KEY, type);
+  const uploadArea = document.getElementById("customAudioUploadArea");
+  if (uploadArea) {
+    uploadArea.style.display = (type === "custom") ? "block" : "none";
+  }
+};
 
 // 檔案選擇上傳處理
 window.handleCustomAudioUpload = async function(event) {
@@ -356,15 +377,27 @@ window.handleClearCustomAudio = async function() {
 window.updateCustomAudioStatusUI = async function() {
   const statusText = document.getElementById("customAudioStatusText");
   const clearBtn = document.getElementById("clearCustomAudioBtn");
+  
+  // 1. 同步 Radio 的勾選與展開狀態
+  const soundType = localStorage.getItem(NOTIF_SOUND_TYPE_KEY) || "short";
+  const radio = document.querySelector(`input[name="notifSoundType"][value="${soundType}"]`);
+  if (radio) radio.checked = true;
+  
+  const uploadArea = document.getElementById("customAudioUploadArea");
+  if (uploadArea) {
+    uploadArea.style.display = (soundType === "custom") ? "block" : "none";
+  }
+
   if (!statusText) return;
   
+  // 2. 顯示本地音效檔案大小狀態
   try {
     const record = await getCustomAudioBlob();
     if (record && record.blob) {
-      statusText.textContent = `🎵 已啟用自訂鈴聲：${record.name} (${formatBytes(record.size)})`;
+      statusText.textContent = `🎵 已啟用本地鈴聲：${record.name} (${formatBytes(record.size)})`;
       if (clearBtn) clearBtn.style.display = "inline-block";
     } else {
-      statusText.textContent = "目前狀態：使用系統預設音效";
+      statusText.textContent = "目前狀態：未上傳本地自訂鈴聲 (選取此項前請先上傳)";
       if (clearBtn) clearBtn.style.display = "none";
     }
   } catch (err) {
