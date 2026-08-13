@@ -1069,6 +1069,7 @@
           } else if (f.type === "datetime-local") {
             const input = document.createElement("input");
             input.type = "datetime-local";
+            input.setAttribute("lang", "en-GB"); // 💡 強制時間滾輪與顯示為 24 小時制
             input.value = row[f.key] || "";
             input.onchange = () => updateField(table, row.id, f.key, input.value, false);
             td.appendChild(input);
