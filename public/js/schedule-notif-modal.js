@@ -72,12 +72,52 @@ async function deleteCustomAudioBlob() {
   });
 }
 
+function populateTimeSelects() {
+  const recurringHour = document.getElementById("partyScheduleRecurringHour");
+  const recurringMin = document.getElementById("partyScheduleRecurringMin");
+  const tempHour = document.getElementById("partyScheduleTempHour");
+  const tempMin = document.getElementById("partyScheduleTempMin");
+
+  if (recurringHour && recurringHour.options.length === 0) {
+    // 填充小時 00-23
+    for (let h = 0; h < 24; h++) {
+      const val = String(h).padStart(2, "0");
+      recurringHour.add(new Option(val, val));
+      tempHour.add(new Option(val, val));
+    }
+    // 填充分鐘 00-59
+    for (let m = 0; m < 60; m++) {
+      const val = String(m).padStart(2, "0");
+      recurringMin.add(new Option(val, val));
+      tempMin.add(new Option(val, val));
+    }
+  }
+}
+
+function setSelectTimeValue(hourEl, minEl, timeStr) {
+  populateTimeSelects();
+  if (!timeStr) {
+    hourEl.value = "21";
+    minEl.value = "00";
+    return;
+  }
+  const [h, m] = timeStr.split(":");
+  hourEl.value = String(h).padStart(2, "0");
+  minEl.value = String(m).padStart(2, "0");
+}
+
+function getSelectTimeValue(hourEl, minEl) {
+  return `${hourEl.value}:${minEl.value}`;
+}
+
 function loadPartyScheduleIntoForm(schedule) {
   const recurringDayEl = document.getElementById("partyScheduleRecurringDay");
-  const recurringTimeEl = document.getElementById("partyScheduleRecurringTime");
+  const recurringHourEl = document.getElementById("partyScheduleRecurringHour");
+  const recurringMinEl = document.getElementById("partyScheduleRecurringMin");
   const tempCheckEl = document.getElementById("partyScheduleTempCheck");
   const tempDayEl = document.getElementById("partyScheduleTempDay");
-  const tempTimeEl = document.getElementById("partyScheduleTempTime");
+  const tempHourEl = document.getElementById("partyScheduleTempHour");
+  const tempMinEl = document.getElementById("partyScheduleTempMin");
   const tempContainer = document.getElementById("partyScheduleTempInputs");
 
   if (!recurringDayEl) return;
@@ -85,10 +125,10 @@ function loadPartyScheduleIntoForm(schedule) {
 
   if (schedule && schedule.recurring && schedule.recurring.dayOfWeek !== null && schedule.recurring.dayOfWeek !== undefined) {
     recurringDayEl.value = String(schedule.recurring.dayOfWeek);
-    recurringTimeEl.value = schedule.recurring.time || "21:00";
+    setSelectTimeValue(recurringHourEl, recurringMinEl, schedule.recurring.time || "21:00");
   } else {
     recurringDayEl.value = "";
-    recurringTimeEl.value = "21:00";
+    setSelectTimeValue(recurringHourEl, recurringMinEl, "21:00");
   }
 
   if (
@@ -99,12 +139,12 @@ function loadPartyScheduleIntoForm(schedule) {
   ) {
     tempCheckEl.checked = true;
     tempDayEl.value = String(schedule.tempOverride.dayOfWeek);
-    tempTimeEl.value = schedule.tempOverride.time || "21:00";
+    setSelectTimeValue(tempHourEl, tempMinEl, schedule.tempOverride.time || "21:00");
     if (tempContainer) tempContainer.style.display = "flex";
   } else {
     tempCheckEl.checked = false;
     tempDayEl.value = recurringDayEl.value || "6";
-    tempTimeEl.value = recurringTimeEl.value || "21:00";
+    setSelectTimeValue(tempHourEl, tempMinEl, getSelectTimeValue(recurringHourEl, recurringMinEl));
     if (tempContainer) tempContainer.style.display = "none";
   }
 }
@@ -118,10 +158,16 @@ window.togglePartyScheduleTempInputs = function(isChecked) {
 
 function readPartyScheduleFromForm() {
   const recurringDay = document.getElementById("partyScheduleRecurringDay").value;
-  const recurringTime = document.getElementById("partyScheduleRecurringTime").value || "21:00";
+  const recurringTime = getSelectTimeValue(
+    document.getElementById("partyScheduleRecurringHour"),
+    document.getElementById("partyScheduleRecurringMin")
+  );
   const hasTemp = document.getElementById("partyScheduleTempCheck").checked;
   const tempDay = document.getElementById("partyScheduleTempDay").value;
-  const tempTime = document.getElementById("partyScheduleTempTime").value || "21:00";
+  const tempTime = getSelectTimeValue(
+    document.getElementById("partyScheduleTempHour"),
+    document.getElementById("partyScheduleTempMin")
+  );
 
   let recurring = null;
   if (recurringDay !== "") {

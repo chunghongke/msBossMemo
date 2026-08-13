@@ -114,7 +114,7 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-items: start;">
           <div>
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: bold;">📅 常態固定時間：</label>
-            <div style="display: flex; gap: 6px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
               <select id="partyScheduleRecurringDay" style="padding: 6px; border-radius: 6px; font-size: 13px; flex: 1;">
                 <option value="">未設定</option>
                 <option value="4">每週四</option>
@@ -125,7 +125,11 @@
                 <option value="2">每週二</option>
                 <option value="3">每週三</option>
               </select>
-              <input type="time" id="partyScheduleRecurringTime" value="21:00" lang="en-GB" style="padding: 5px; border-radius: 6px; font-size: 13px; width: 100px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <select id="partyScheduleRecurringHour" style="padding: 5px; border-radius: 6px; font-size: 13px; width: 62px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); text-align: center;"></select>
+                <span style="color: var(--text-muted); font-weight: bold;">:</span>
+                <select id="partyScheduleRecurringMin" style="padding: 5px; border-radius: 6px; font-size: 13px; width: 62px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); text-align: center;"></select>
+              </div>
             </div>
           </div>
           <div>
@@ -133,7 +137,7 @@
               <input type="checkbox" id="partyScheduleTempCheck" onchange="togglePartyScheduleTempInputs(this.checked)">
               ⚡ 僅修改本週時間（下週自動恢復）
             </label>
-            <div id="partyScheduleTempInputs" style="display: none; gap: 6px;">
+            <div id="partyScheduleTempInputs" style="display: none; gap: 6px; align-items: center;">
               <select id="partyScheduleTempDay" style="padding: 6px; border-radius: 6px; font-size: 13px; flex: 1;">
                 <option value="4">本週四</option>
                 <option value="5">本週五</option>
@@ -143,7 +147,11 @@
                 <option value="2">本週二</option>
                 <option value="3">本週三</option>
               </select>
-              <input type="time" id="partyScheduleTempTime" value="21:00" lang="en-GB" style="padding: 5px; border-radius: 6px; font-size: 13px; width: 100px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <select id="partyScheduleTempHour" style="padding: 5px; border-radius: 6px; font-size: 13px; width: 62px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); text-align: center;"></select>
+                <span style="color: var(--text-muted); font-weight: bold;">:</span>
+                <select id="partyScheduleTempMin" style="padding: 5px; border-radius: 6px; font-size: 13px; width: 62px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); text-align: center;"></select>
+              </div>
             </div>
           </div>
         </div>

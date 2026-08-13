@@ -1067,12 +1067,80 @@
             input.onchange = () => updateField(table, row.id, f.key, input.value, false);
             td.appendChild(input);
           } else if (f.type === "datetime-local") {
-            const input = document.createElement("input");
-            input.type = "datetime-local";
-            input.setAttribute("lang", "en-GB"); // 💡 強制時間滾輪與顯示為 24 小時制
-            input.value = row[f.key] || "";
-            input.onchange = () => updateField(table, row.id, f.key, input.value, false);
-            td.appendChild(input);
+            const container = document.createElement("div");
+            container.style.display = "flex";
+            container.style.gap = "4px";
+            container.style.alignItems = "center";
+            container.style.width = "100%";
+
+            const val = row[f.key] || ""; // 例如 "2026-08-13T23:22"
+            let datePart = "";
+            let timePart = "";
+            if (val.includes("T")) {
+              [datePart, timePart] = val.split("T");
+            } else if (val) {
+              const parts = val.split(" ");
+              datePart = parts[0];
+              timePart = parts[1] || "";
+            }
+
+            const dateInput = document.createElement("input");
+            dateInput.type = "date";
+            dateInput.style.flex = "1";
+            dateInput.style.minWidth = "0";
+            dateInput.value = datePart;
+
+            const timeInput = document.createElement("input");
+            timeInput.type = "text";
+            timeInput.placeholder = "21:00";
+            timeInput.style.width = "52px";
+            timeInput.style.textAlign = "center";
+            timeInput.style.flexShrink = "0";
+            timeInput.value = timePart ? timePart.substring(0, 5) : "";
+
+            const updateFn = () => {
+              const dVal = dateInput.value;
+              const tVal = timeInput.value.trim();
+              if (!dVal) {
+                // 若連日期都沒有，則設為空
+                updateField(table, row.id, f.key, "", false);
+                return;
+              }
+
+              let finalTime = tVal || "00:00";
+              // 格式驗證：HH:mm 或是 H:mm
+              const timeReg = /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/;
+              if (!timeReg.test(finalTime)) {
+                // 防呆容錯自動補齊，例如輸入 "9" ➔ "09:00"，輸入 "930" ➔ "09:30"
+                if (/^\d+$/.test(finalTime)) {
+                  if (finalTime.length <= 2) {
+                    finalTime = String(finalTime).padStart(2, "0") + ":00";
+                  } else if (finalTime.length === 3) {
+                    finalTime = "0" + finalTime.charAt(0) + ":" + finalTime.substring(1);
+                  } else if (finalTime.length === 4) {
+                    finalTime = finalTime.substring(0, 2) + ":" + finalTime.substring(2);
+                  } else {
+                    finalTime = "00:00";
+                  }
+                } else {
+                  finalTime = "00:00";
+                }
+              }
+              
+              // 補齊首位 0，確保 HH:mm 標準格式
+              const parts = finalTime.split(":");
+              finalTime = parts[0].padStart(2, "0") + ":" + parts[1];
+              timeInput.value = finalTime;
+
+              updateField(table, row.id, f.key, `${dVal}T${finalTime}`, false);
+            };
+
+            dateInput.onchange = updateFn;
+            timeInput.onchange = updateFn;
+
+            container.appendChild(dateInput);
+            container.appendChild(timeInput);
+            td.appendChild(container);
           } else if (f.type === "computed") {
             td.classList.add("computed");
             td.textContent = fmtMoney(row[f.key]) + " 元";
