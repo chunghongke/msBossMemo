@@ -579,13 +579,13 @@ function renderNotificationScheduleList() {
 
     const isCompleted = checkIfTeamCompletedThisWeek(team);
 
-    let bossName = "BOSS 隊伍";
     const records = Object.values(window.store.weeklyRecords || {});
     const sampleRec = records.find(r => r && r.teamId === team.id);
-    if (sampleRec) {
-      const b = window.config.bosses.find(bb => bb.id === sampleRec.bossId);
-      if (b) bossName = b.name;
-    }
+    if (!sampleRec) return; // 💡 幽靈/孤兒隊伍 (無 Boss 關聯)，直接跳過不顯示於提醒列表
+
+    let bossName = "BOSS 隊伍";
+    const b = window.config.bosses.find(bb => bb.id === sampleRec.bossId);
+    if (b) bossName = b.name;
 
     const memberNames = members.map(m => getCharName(m.charId)).join("、");
     const diffMs = raidDate.getTime() - now.getTime();

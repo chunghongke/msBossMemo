@@ -47,7 +47,28 @@ onValue(rootRef, (snapshot) => {
 
   const weeklyResetHappened = checkAndPerformWeeklyReset();
   ensureDefaultSingleTeams();
-  if (weeklyResetHappened) saveStoreToCloud();
+
+  // 🧹 幽靈隊伍背景清理 (Garbage Collection)
+  let dbCleanNeeded = false;
+  if (window.store.teams && window.store.weeklyRecords) {
+    const records = Object.values(window.store.weeklyRecords);
+    Object.keys(window.store.teams).forEach(teamId => {
+      // 1. 檢查是否有任何 weeklyRecord 的 teamId 指向此隊伍
+      const isReferenced = records.some(r => r && r.teamId === teamId);
+      if (isReferenced) return;
+
+      // 2. 判斷這是不是預設單人隊伍 (預設單人隊伍的 ID 格式為 single_ 開頭)
+      const isDefaultSingle = teamId.startsWith("single_");
+      if (isDefaultSingle) return;
+
+      // 這是一個既非預設單人隊伍，也沒有被任何 Boss 關聯的自訂多人隊伍 (孤兒隊伍)，背景自動清除
+      delete window.store.teams[teamId];
+      dbCleanNeeded = true;
+      console.log(`🧹 背景自動清理無效幽靈隊伍: ${teamId}`);
+    });
+  }
+
+  if (weeklyResetHappened || dbCleanNeeded) saveStoreToCloud();
   renderApp();
 });
 

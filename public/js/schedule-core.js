@@ -121,13 +121,13 @@ function checkRaidReminders() {
       const notifyKey = `maple_notified_${team.id}_${currentWeekKey}_${schedule.isTemp ? 'temp_' : ''}${schedule.dayOfWeek}_${schedule.time}`;
       if (localStorage.getItem(notifyKey)) return;
 
-      let bossName = "BOSS";
       const records = Object.values(window.store.weeklyRecords || {});
       const sampleRec = records.find(r => r && r.teamId === team.id);
-      if (sampleRec) {
-        const b = window.config.bosses.find(bb => bb.id === sampleRec.bossId);
-        if (b) bossName = b.name;
-      }
+      if (!sampleRec) return; // 💡 幽靈/孤兒隊伍 (無 Boss 關聯)，不發送提醒
+
+      let bossName = "BOSS";
+      const b = window.config.bosses.find(bb => bb.id === sampleRec.bossId);
+      if (b) bossName = b.name;
 
       const memberNames = members.map(m => getCharName(m.charId)).join("、");
       const remainingDesc = diffMinutes > 0 ? `還有約 ${Math.ceil(diffMinutes)} 分鐘（${schedule.time}）` : `現在（${schedule.time}）`;
