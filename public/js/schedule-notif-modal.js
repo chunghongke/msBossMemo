@@ -78,24 +78,29 @@ function populateTimeSelects() {
   const tempHour = document.getElementById("partyScheduleTempHour");
   const tempMin = document.getElementById("partyScheduleTempMin");
 
-  if (recurringHour && recurringHour.options.length === 0) {
-    // 填充小時 00-23
-    for (let h = 0; h < 24; h++) {
-      const val = String(h).padStart(2, "0");
-      recurringHour.add(new Option(val, val));
-      tempHour.add(new Option(val, val));
-    }
-    // 填充分鐘 00-59
-    for (let m = 0; m < 60; m++) {
-      const val = String(m).padStart(2, "0");
-      recurringMin.add(new Option(val, val));
-      tempMin.add(new Option(val, val));
+  // 💡 加上安全 Null-check 防呆，防止瀏覽器快取 HTML 導致元素抓不到而崩潰
+  if (recurringHour && recurringMin && tempHour && tempMin) {
+    if (recurringHour.options.length === 0) {
+      // 填充小時 00-23
+      for (let h = 0; h < 24; h++) {
+        const val = String(h).padStart(2, "0");
+        recurringHour.add(new Option(val, val));
+        tempHour.add(new Option(val, val));
+      }
+      // 填充分鐘 00-59
+      for (let m = 0; m < 60; m++) {
+        const val = String(m).padStart(2, "0");
+        recurringMin.add(new Option(val, val));
+        tempMin.add(new Option(val, val));
+      }
     }
   }
 }
 
 function setSelectTimeValue(hourEl, minEl, timeStr) {
   populateTimeSelects();
+  if (!hourEl || !minEl) return; // 💡 安全防呆
+
   if (!timeStr) {
     hourEl.value = "21";
     minEl.value = "00";
@@ -107,6 +112,7 @@ function setSelectTimeValue(hourEl, minEl, timeStr) {
 }
 
 function getSelectTimeValue(hourEl, minEl) {
+  if (!hourEl || !minEl) return "21:00"; // 💡 安全防呆
   return `${hourEl.value}:${minEl.value}`;
 }
 
