@@ -8,6 +8,7 @@ let editingCharId = null;
 let editingBossId = null;
 let editingEntry = 1;
 let coveredByOtherTeams = new Set(); // 「現有隊伍快速加入」清單裡，屬於別隊（不是正在編輯這隊）的成員，這些人如果還沒被勾選，個別清單就不重複列出
+let originalTeamTargets = []; // modal 開啟時的原始隊員清單，用來識別使用者主動移除的人
 
 // ==========================================
 // 手機長按 (Long Press) 模擬右鍵 —— 開啟組隊編輯 modal
@@ -83,6 +84,9 @@ function openPartyModal(event, charId, bossId, entryIndex) {
   renderPartySelectList(currentTargets, null, true);
   loadPartyScheduleIntoForm(currentSchedule);
 
+  // 記住開啟時的原始隊員，savePartyTeam 用來辨識「使用者主動取消」的成員
+  originalTeamTargets = currentTargets.slice();
+
   document.getElementById("partyModal").style.display = "flex";
 }
 
@@ -122,6 +126,14 @@ function savePartyTeam() {
   const finalMap = new Map();
   selectedTargets.forEach(t => finalMap.set(targetKey(t), t));
 
+  // 💡 找出「使用者明確取消勾選」的成員：原本就在這支隊伍、但這次存檔時沒有出現在 selectedTargets 裡
+  //    這些人不應被自動合併邏輯偷偷補回來（否則「移除成員」的操作會失效）
+  const explicitlyRemovedKeys = new Set(
+    originalTeamTargets
+      .filter(orig => !finalMap.has(targetKey(orig)))
+      .map(orig => targetKey(orig))
+  );
+
   const autoMergedNames = [];
   selectedTargets.forEach(sel => {
     if (sel.charId === editingCharId) return;
@@ -131,6 +143,9 @@ function savePartyTeam() {
       //    所以不強制把 Guest 合併回來，尊重使用者當下實際的勾選狀態，避免明明取消勾選了、存檔後又被偷偷加回去
       if (m.charId.startsWith("guest_")) return;
       if (finalMap.has(targetKey(m))) return;
+
+      // 💡 這個成員是使用者在這次編輯中「主動取消勾選」的人，不要強制合併回來
+      if (explicitlyRemovedKeys.has(targetKey(m))) return;
 
       // 💡 這個人已經用「另一個身份」（不同 entryIndex）出現在目前名單裡了，不要再合併回來，
       //    避免形成同一人同時佔用首刷+重置兩個身份的無效狀態（也避免跟下面的重複檢查形成死結）

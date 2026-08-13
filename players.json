@@ -1,0 +1,59 @@
+[
+  {
+    "name": "Rumi",
+    "characters": [
+      {
+        "id": "char_p1_1",
+        "name": "幸運星",
+        "bossIds": [
+          "lotus",
+          "damien",
+          "lucid",
+          "will",
+          "guardian_angel_slime",
+          "verus_hilla",
+          "dunkel",
+          "gloom",
+          "black_mage",
+          "seren",
+          "kalos",
+          "kaling"
+        ],
+        "resetBossIds": [
+          "lotus"
+        ]
+      },
+      {
+        "id": "char_p1_2",
+        "name": "灣胖曲",
+        "bossIds": [
+          "lotus",
+          "damien",
+          "guardian_angel_slime",
+          "lucid"
+        ],
+        "resetBossIds": [
+          "lotus"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "巴塔",
+    "characters": [
+      {
+        "id": "char_p2_1",
+        "name": "BATA",
+        "bossIds": [
+          "kalos",
+          "kaling",
+          "limbo",
+          "lotus"
+        ],
+        "resetBossIds": [
+          "lotus"
+        ]
+      }
+    ]
+  }
+]
