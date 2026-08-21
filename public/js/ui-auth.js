@@ -14,27 +14,53 @@ async function hashPassword(password, salt = 'msbossmemo_secure_salt_2026') {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+let cachedAuthPlayer = null;
+let lastAuthCacheKey = '';
+let lastAuthHeaderHtml = '';
+
 // 取得當前已驗證通過的玩家名稱
 window.getAuthenticatedPlayer = function() {
   const savedPlayer = localStorage.getItem("boss_auth_player");
   const savedToken = localStorage.getItem("boss_auth_token");
-  if (!savedPlayer || !savedToken) return "";
-
-  if (!window.config || !window.config.players) return savedPlayer;
-
-  const player = window.config.players.find(p => p.name === savedPlayer);
-  if (!player) return "";
-
-  // 若玩家有密碼，校驗 token 是否匹配
-  if (player.passwordHash && player.passwordHash !== savedToken) {
+  if (!savedPlayer || !savedToken) {
+    cachedAuthPlayer = "";
     return "";
   }
 
+  const cacheKey = `${savedPlayer}:${savedToken}:${window.config && window.config.players ? window.config.players.length : 0}`;
+  if (lastAuthCacheKey === cacheKey && cachedAuthPlayer !== null) {
+    return cachedAuthPlayer;
+  }
+
+  if (!window.config || !window.config.players) {
+    cachedAuthPlayer = savedPlayer;
+    lastAuthCacheKey = cacheKey;
+    return savedPlayer;
+  }
+
+  const player = window.config.players.find(p => p.name === savedPlayer);
+  if (!player) {
+    cachedAuthPlayer = "";
+    lastAuthCacheKey = cacheKey;
+    return "";
+  }
+
+  // 若玩家有密碼，校驗 token 是否匹配
+  if (player.passwordHash && player.passwordHash !== savedToken) {
+    cachedAuthPlayer = "";
+    lastAuthCacheKey = cacheKey;
+    return "";
+  }
+
+  cachedAuthPlayer = savedPlayer;
+  lastAuthCacheKey = cacheKey;
   return savedPlayer;
 };
 
 // 設定當前已驗證的玩家
 window.setAuthenticatedPlayer = function(playerName, passwordHash) {
+  lastAuthCacheKey = '';
+  cachedAuthPlayer = null;
   localStorage.setItem("boss_auth_player", playerName);
   localStorage.setItem("boss_auth_token", passwordHash);
   localStorage.setItem("preferred_primary_user", playerName);
@@ -43,6 +69,8 @@ window.setAuthenticatedPlayer = function(playerName, passwordHash) {
 
 // 登出 / 清除身分
 window.logoutPlayer = function() {
+  lastAuthCacheKey = '';
+  cachedAuthPlayer = null;
   localStorage.removeItem("boss_auth_player");
   localStorage.removeItem("boss_auth_token");
   localStorage.removeItem("preferred_primary_user");
@@ -69,10 +97,11 @@ window.updateAuthHeaderUI = function() {
   if (!container) return;
 
   const authPlayerName = getAuthenticatedPlayer();
+  let newHtml = "";
   if (authPlayerName) {
     const player = (window.config.players || []).find(p => p.name === authPlayerName);
     const emoji = player && player.avatarEmoji ? player.avatarEmoji : '👤';
-    container.innerHTML = `
+    newHtml = `
       <div style="display: flex; align-items: center; gap: 8px; background: var(--char-card-bg, #f1f5f9); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-color); font-size: 13px;">
         <span style="font-size: 16px;">${emoji}</span>
         <strong style="color: var(--text-main);">${authPlayerName}</strong>
@@ -83,11 +112,16 @@ window.updateAuthHeaderUI = function() {
       </div>
     `;
   } else {
-    container.innerHTML = `
+    newHtml = `
       <button class="btn" onclick="openAuthModal('login')" style="background: #e11d48; border-color: #e11d48; font-size: 13px;">
         🔑 選擇/登入主要玩家
       </button>
     `;
+  }
+
+  if (lastAuthHeaderHtml !== newHtml) {
+    lastAuthHeaderHtml = newHtml;
+    container.innerHTML = newHtml;
   }
 };
 

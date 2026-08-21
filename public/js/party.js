@@ -97,5 +97,6 @@
       }
     }
 
+    renderApp(); // ⚡ 樂觀即時渲染：0ms 立即觸發卡片順序滑動動畫，無須等待雲端網路來回
     saveStoreToCloud();
   }
