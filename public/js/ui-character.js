@@ -31,19 +31,58 @@ window.openAddCharacterModal = function() {
   playerSelect.disabled = true;
 
   bossListContainer.innerHTML = "";
+
   if (window.config.bosses && Array.isArray(window.config.bosses)) {
-    const reversedBosses = window.config.bosses.slice().reverse();
-    reversedBosses.forEach(boss => {
-      bossListContainer.innerHTML += `
-        <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #334155 !important;">
-          <input type="checkbox" class="new-char-boss-checkbox" value="${boss.id}" onchange="handleCharBossCheckboxLimit(this, '.new-char-boss-checkbox', 'newCharBossCount')" />
-          ${boss.name}
-        </label>
+    // 依據 getBossGroupKey 進行分組
+    const groupMap = new Map();
+    window.config.bosses.forEach(boss => {
+      const gKey = getBossGroupKey(boss.id);
+      if (!groupMap.has(gKey)) {
+        const cleanName = boss.name.replace(/^\([^)]+\)\s*/, "");
+        groupMap.set(gKey, { id: gKey, name: cleanName, bosses: [] });
+      }
+      groupMap.get(gKey).bosses.push(boss);
+    });
+
+    // 渲染分組卡片
+    groupMap.forEach((group, groupKey) => {
+      let buttonsHtml = "";
+      group.bosses.forEach(boss => {
+        const difficulty = boss.difficulty || "normal";
+        const dc = getDifficultyColor(difficulty);
+        const inactiveStyle = `background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; opacity: 0.35;`;
+
+        buttonsHtml += `
+          <button type="button"
+            class="new-char-boss-btn"
+            data-boss-id="${boss.id}"
+            data-group-key="${groupKey}"
+            data-active="false"
+            style="width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; ${inactiveStyle}"
+            onclick="toggleNewCharBossSelection(this, '${boss.id}', '${groupKey}')"
+            title="${boss.name}">
+            ${dc.text}
+          </button>
+        `;
+      });
+
+      const cardHtml = `
+        <div class="boss-card" style="display: flex; flex-direction: column; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: border-color 0.2s;">
+          <div style="width: 100%; height: 70px; display: flex; justify-content: center; align-items: center; background: #0f172a; border-radius: 6px; overflow: hidden; position: relative;">
+            <img src="./images/bosses/${groupKey}.png?v=1" onerror="this.src='./icon.png'" id="newCharImg_${groupKey}"
+              style="max-width: 100%; max-height: 100%; object-fit: contain; filter: grayscale(100%); opacity: 0.4; transition: all 0.25s;" />
+            <span style="position: absolute; bottom: 3px; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.9); white-space: nowrap; max-width: 95%; overflow: hidden; text-overflow: ellipsis;">${group.name}</span>
+          </div>
+          <div style="display: flex; gap: 5px; width: 100%; justify-content: center; flex-wrap: wrap;">
+            ${buttonsHtml}
+          </div>
+        </div>
       `;
+      bossListContainer.innerHTML += cardHtml;
     });
   }
-  updateCharBossCountDisplay('.new-char-boss-checkbox', 'newCharBossCount');
 
+  updateNewCharBossCount();
   modal.style.display = "flex";
 };
 
@@ -62,8 +101,8 @@ window.submitNewCharacter = function() {
   }
 
   const selectedBossIds = [];
-  const checkboxes = document.querySelectorAll(".new-char-boss-checkbox:checked");
-  checkboxes.forEach(cb => selectedBossIds.push(cb.value));
+  const activeButtons = document.querySelectorAll(".new-char-boss-btn[data-active='true']");
+  activeButtons.forEach(btn => selectedBossIds.push(btn.getAttribute("data-boss-id")));
 
   if (selectedBossIds.length > 12) {
     alert(`最多只能選擇 12 隻 BOSS！(目前勾選了 ${selectedBossIds.length} 隻)`);
@@ -105,6 +144,78 @@ window.submitNewCharacter = function() {
     console.error("Firebase 實例未成功初始化 (window.db/dbSet 未載入)");
     alert("資料庫連線失敗，請重新整理頁面。");
   }
+};
+
+// ==========================================
+// 新增角色 BOSS 選取切換（圖片卡片版）
+// ==========================================
+window.toggleNewCharBossSelection = function(btn, bossId, groupKey) {
+  const isActive = btn.getAttribute("data-active") === "true";
+
+  function activateNewBtn(b) {
+    const bid = b.getAttribute("data-boss-id");
+    let diff = "normal";
+    if (bid.endsWith("_easy")) diff = "easy";
+    else if (bid.endsWith("_hard")) diff = "hard";
+    else if (bid.endsWith("_extreme")) diff = "extreme";
+    const dc = getDifficultyColor(diff);
+    b.setAttribute("data-active", "true");
+    b.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; box-shadow: 0 0 8px ${dc.shadow}; transform: scale(1.1);`;
+  }
+
+  function deactivateNewBtn(b) {
+    const bid = b.getAttribute("data-boss-id");
+    let diff = "normal";
+    if (bid.endsWith("_easy")) diff = "easy";
+    else if (bid.endsWith("_hard")) diff = "hard";
+    else if (bid.endsWith("_extreme")) diff = "extreme";
+    const dc = getDifficultyColor(diff);
+    b.setAttribute("data-active", "false");
+    b.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; opacity: 0.35;`;
+  }
+
+  if (!isActive) {
+    // 同 group 內是否已有選取
+    const sameGroupActiveBtns = document.querySelectorAll(`.new-char-boss-btn[data-group-key="${groupKey}"][data-active="true"]`);
+    if (sameGroupActiveBtns.length > 0) {
+      // 同 group 直接切換難度
+      sameGroupActiveBtns.forEach(b => deactivateNewBtn(b));
+      activateNewBtn(btn);
+    } else {
+      // 全新 group：檢查 12 隻上限
+      const currentCount = document.querySelectorAll(".new-char-boss-btn[data-active='true']").length;
+      if (currentCount >= 12) {
+        alert("最多只能選擇 12 隻 BOSS！");
+        return;
+      }
+      activateNewBtn(btn);
+    }
+  } else {
+    deactivateNewBtn(btn);
+  }
+
+  // 圖片亮度連動
+  const groupActiveBtns = document.querySelectorAll(`.new-char-boss-btn[data-group-key="${groupKey}"][data-active="true"]`);
+  const img = document.getElementById(`newCharImg_${groupKey}`);
+  if (img) {
+    if (groupActiveBtns.length > 0) {
+      img.style.filter = "none";
+      img.style.opacity = "1";
+    } else {
+      img.style.filter = "grayscale(100%)";
+      img.style.opacity = "0.4";
+    }
+  }
+
+  updateNewCharBossCount();
+};
+
+window.updateNewCharBossCount = function() {
+  const span = document.getElementById("newCharBossCount");
+  if (!span) return;
+  const count = document.querySelectorAll(".new-char-boss-btn[data-active='true']").length;
+  span.innerText = `(已選 ${count} / 12)`;
+  span.style.color = count >= 12 ? '#e11d48' : '#64748b';
 };
 
 // ==========================================
