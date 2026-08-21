@@ -46,9 +46,10 @@ window.logoutPlayer = function() {
   localStorage.removeItem("boss_auth_player");
   localStorage.removeItem("boss_auth_token");
   localStorage.removeItem("preferred_primary_user");
-  updateAuthHeaderUI();
   renderApp();
-  closeAuthModal();
+  updateAuthHeaderUI();
+  // 清除身分後強制重新顯示登入視窗（不可關閉）
+  openAuthModal('login');
 };
 
 // 初始化並檢查身分狀態
