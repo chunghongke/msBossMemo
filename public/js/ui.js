@@ -52,10 +52,9 @@ function toggleAllPlayers(shouldCollapse) {
 // ==========================================
 function getPrimaryUser() {
   if (typeof window.getAuthenticatedPlayer === 'function') {
-    const authUser = window.getAuthenticatedPlayer();
-    if (authUser) return authUser;
+    return window.getAuthenticatedPlayer() || "";
   }
-  return localStorage.getItem("preferred_primary_user") || "";
+  return "";
 }
 
 function changePrimaryUser(userName) {

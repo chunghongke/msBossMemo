@@ -98,6 +98,7 @@ window.openAuthModal = function(mode = 'login') {
   const tabHeader = document.getElementById("authTabHeader");
   const titleText = document.getElementById("authModalTitleText");
   const titleIcon = document.getElementById("authModalTitleIcon");
+  const closeBtn = document.getElementById("authModalCloseBtn");
   if (!modal) return;
 
   // 清除註冊表單輸入
@@ -108,14 +109,17 @@ window.openAuthModal = function(mode = 'login') {
   if (pwdInput) pwdInput.value = "";
   if (confirmInput) confirmInput.value = "";
 
+  const currentAuth = getAuthenticatedPlayer();
+  // 已登入才可關閉（✕按鈕顯示），未登入強制鎖定
+  const canClose = !!currentAuth;
+  if (closeBtn) closeBtn.style.display = canClose ? "block" : "none";
+
   if (mode === 'register_only') {
-    // 專屬新增玩家模式：隱藏上方頁籤，標題改為新增玩家
     if (tabHeader) tabHeader.style.display = "none";
     if (titleText) titleText.textContent = "新增玩家";
     if (titleIcon) titleIcon.textContent = "➕";
     switchAuthTab('register');
   } else {
-    // 完整身分驗證模式：顯示頁籤
     if (tabHeader) tabHeader.style.display = "flex";
     if (titleText) titleText.textContent = "玩家身分驗證";
     if (titleIcon) titleIcon.textContent = "🔐";
@@ -123,7 +127,6 @@ window.openAuthModal = function(mode = 'login') {
   }
 
   const logoutBtn = document.getElementById("authModalLogoutBtn");
-  const currentAuth = getAuthenticatedPlayer();
   if (logoutBtn) {
     logoutBtn.style.display = (currentAuth && mode !== 'register_only') ? "inline-block" : "none";
   }
@@ -132,6 +135,9 @@ window.openAuthModal = function(mode = 'login') {
 };
 
 window.closeAuthModal = function() {
+  // 若未登入，禁止關閉（強制必須完成登入）
+  const currentAuth = getAuthenticatedPlayer();
+  if (!currentAuth) return;
   const modal = document.getElementById("authModal");
   if (modal) modal.style.display = "none";
 };
