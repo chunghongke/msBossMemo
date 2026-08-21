@@ -40,7 +40,11 @@ function checkAndPerformWeeklyReset() {
         if (rec.isCompleted && rec.shardShares !== null && rec.shardShares !== undefined) {
           rec.lastWeekShardShares = rec.shardShares;
         }
+        if (rec.isCompleted && rec.shardQuantity !== null && rec.shardQuantity !== undefined) {
+          rec.lastWeekShardQuantity = rec.shardQuantity;
+        }
         rec.shardShares = null;
+        rec.shardQuantity = null;
         rec.isCompleted = false;
       });
     }

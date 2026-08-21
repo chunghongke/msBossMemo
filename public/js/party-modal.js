@@ -195,15 +195,17 @@ function savePartyTeam() {
   finalTargets.forEach(target => {
     if (target.charId.startsWith("guest_")) return;
     const recKey = `rec_${target.charId}_${editingBossId}_${target.entryIndex}`;
-    const oldRecord = window.store.weeklyRecords[recKey];
     window.store.weeklyRecords[recKey] = {
       charId: target.charId,
       bossId: editingBossId,
       entryIndex: target.entryIndex,
       teamId: sharedTeamId,
       isCompleted: oldRecord ? oldRecord.isCompleted : false,
+      shardMode: (oldRecord && oldRecord.shardMode !== undefined) ? oldRecord.shardMode : 'shares',
       shardShares: (oldRecord && oldRecord.shardShares !== undefined) ? oldRecord.shardShares : null,
-      lastWeekShardShares: (oldRecord && oldRecord.lastWeekShardShares !== undefined) ? oldRecord.lastWeekShardShares : null
+      lastWeekShardShares: (oldRecord && oldRecord.lastWeekShardShares !== undefined) ? oldRecord.lastWeekShardShares : null,
+      shardQuantity: (oldRecord && oldRecord.shardQuantity !== undefined) ? oldRecord.shardQuantity : null,
+      lastWeekShardQuantity: (oldRecord && oldRecord.lastWeekShardQuantity !== undefined) ? oldRecord.lastWeekShardQuantity : null
     };
   });
 
@@ -234,8 +236,11 @@ function savePartyTeam() {
       entryIndex: target.entryIndex,
       teamId: defaultTeamId,
       isCompleted: oldRecord ? oldRecord.isCompleted : false,
+      shardMode: (oldRecord && oldRecord.shardMode !== undefined) ? oldRecord.shardMode : 'shares',
       shardShares: (oldRecord && oldRecord.shardShares !== undefined) ? oldRecord.shardShares : null,
-      lastWeekShardShares: (oldRecord && oldRecord.lastWeekShardShares !== undefined) ? oldRecord.lastWeekShardShares : null
+      lastWeekShardShares: (oldRecord && oldRecord.lastWeekShardShares !== undefined) ? oldRecord.lastWeekShardShares : null,
+      shardQuantity: (oldRecord && oldRecord.shardQuantity !== undefined) ? oldRecord.shardQuantity : null,
+      lastWeekShardQuantity: (oldRecord && oldRecord.lastWeekShardQuantity !== undefined) ? oldRecord.lastWeekShardQuantity : null
     };
   });
 

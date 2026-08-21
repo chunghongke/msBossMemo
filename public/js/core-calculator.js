@@ -138,9 +138,14 @@ function calculateCharacterShard(c) {
       expected += isSolo ? boss.erionVestiges : unitShare;
 
       if (record.isCompleted) {
-        const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
-        const shares = isSolo ? maxPartySize : (hasChosen ? record.shardShares : 1);
-        earned += unitShare * shares;
+        if (record.shardMode === 'quantity') {
+          const hasChosenQty = record.shardQuantity !== null && record.shardQuantity !== undefined;
+          earned += isSolo ? boss.erionVestiges : (hasChosenQty ? record.shardQuantity : unitShare);
+        } else {
+          const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
+          const shares = isSolo ? maxPartySize : (hasChosen ? record.shardShares : 1);
+          earned += unitShare * shares;
+        }
       }
     }
   });

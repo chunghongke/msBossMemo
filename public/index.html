@@ -278,7 +278,22 @@
   <!-- 艾里溫碎片：份數選擇 Modal -->
   <div id="shardShareModal" class="modal">
     <div class="modal-content" style="max-width: 420px; text-align: left;">
-      <h3 id="shardShareTitle" style="margin-top: 0; margin-bottom: 8px; font-size: 16px;">🔹 分配這次撿取的艾里溫碎片份數</h3>
+      <h3 id="shardShareTitle" style="margin-top: 0; margin-bottom: 8px; font-size: 16px;">🔹 分配這次撿取的艾里溫碎片</h3>
+      
+      <!-- 模式切換 -->
+      <div style="display: flex; gap: 0; margin-bottom: 14px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+        <button id="shardModeSharesBtn" type="button"
+          onclick="switchShardMode('shares')"
+          style="flex:1; padding: 7px 10px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; background: #3b82f6; color: #fff; transition: all 0.2s;">
+          📊 份數模式
+        </button>
+        <button id="shardModeQuantityBtn" type="button"
+          onclick="switchShardMode('quantity')"
+          style="flex:1; padding: 7px 10px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; background: var(--card-bg); color: var(--text-muted); transition: all 0.2s;">
+          🔢 數量模式
+        </button>
+      </div>
+
       <div id="shardShareOptions" class="shard-share-options"></div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button class="btn btn-secondary" onclick="closeShardShareModal()">取消</button>

@@ -221,29 +221,49 @@ function renderApp() {
                   ? `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)\\n🎟️ 此次數來自重置券：${boss.name}(同難度)`
                   : `隊伍成員: ${allMemberNames} (右鍵可編輯隊伍)`);
 
-              // 艾里溫碎片份數標籤：只有這隻 BOSS 有設定 erionVestiges 才顯示
-              // - 單人隊伍：固定顯示「滿額/滿額」（例如 6/6），純顯示不可點擊，因為單人自動全拿不用選
-              // - 多人隊伍：顯示目前選了幾份，點擊可以打開選擇彈窗（0 份也是合法選項，例如兩人隊伍這週 A 全撿、下週換 B 全撿）
+              // 艾里溫碎片份數/數量標籤：只有這隻 BOSS 有設定 erionVestiges 才顯示
+              // - 單人隊伍：固定顯示滿額（份數模式：6/6份；數量模式：60/60個），純顯示不可點擊
+              // - 多人隊伍：顯示目前選了幾份或幾個，點擊可以打開分配彈窗
               const maxPartySize = boss.maxPartySize || 1;
+              const totalShards = boss.erionVestiges || 0;
               const isSoloTeam = validMembers.length <= 1;
+              const isQuantityMode = record.shardMode === 'quantity';
               let shardTagHtml = "";
               if (boss.erionVestiges) {
                 if (isSoloTeam) {
-                  shardTagHtml = `
-                    <div class="shard-tag static" title="單人隊伍自動全拿">
-                      <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${maxPartySize}/${maxPartySize}份
-                    </div>
-                  `;
+                  shardTagHtml = isQuantityMode
+                    ? `
+                      <div class="shard-tag static" title="單人隊伍自動全拿">
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${totalShards}/${totalShards}個
+                      </div>
+                    `
+                    : `
+                      <div class="shard-tag static" title="單人隊伍自動全拿">
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${maxPartySize}/${maxPartySize}份
+                      </div>
+                    `;
                 } else {
-                  const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
-                  const currentShares = hasChosen ? record.shardShares : "?";
-                  shardTagHtml = `
-                    <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
-                        ${isOwner ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片份數！')"`}
-                        title="${isOwner ? '設定這次撿取的艾里溫碎片份數' : '艾里溫碎片份數（唯讀）'}">
-                      <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentShares}/${maxPartySize}份
-                    </div>
-                  `;
+                  if (isQuantityMode) {
+                    const hasChosen = record.shardQuantity !== null && record.shardQuantity !== undefined;
+                    const currentQty = hasChosen ? record.shardQuantity : "?";
+                    shardTagHtml = `
+                      <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
+                          ${isOwner ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片！')"`}
+                          title="${isOwner ? '設定這次撿取的艾里溫碎片數量' : '艾里溫碎片數量（唯讀）'}">
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentQty}/${totalShards}個
+                      </div>
+                    `;
+                  } else {
+                    const hasChosen = record.shardShares !== null && record.shardShares !== undefined;
+                    const currentShares = hasChosen ? record.shardShares : "?";
+                    shardTagHtml = `
+                      <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
+                          ${isOwner ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片份數！')"`}
+                          title="${isOwner ? '設定這次撿取的艾里溫碎片份數' : '艾里溫碎片份數（唯讀）'}">
+                        <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentShares}/${maxPartySize}份
+                      </div>
+                    `;
+                  }
                 }
               }
 
