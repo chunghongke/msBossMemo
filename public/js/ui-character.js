@@ -275,35 +275,51 @@ window.toggleBossSelection = function(btn, bossId, groupKey, reservedCount) {
   reservedCount = reservedCount || 0;
   const isActive = btn.getAttribute("data-active") === "true";
 
+  // 輔助：將按鈕設為啟用樣式
+  function activateBtn(b) {
+    const bid = b.getAttribute("data-boss-id");
+    let diff = "normal";
+    if (bid.endsWith("_easy")) diff = "easy";
+    else if (bid.endsWith("_hard")) diff = "hard";
+    else if (bid.endsWith("_extreme")) diff = "extreme";
+    const dc = getDifficultyColor(diff);
+    b.setAttribute("data-active", "true");
+    b.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; box-shadow: 0 0 8px ${dc.shadow}; transform: scale(1.1);`;
+  }
+
+  // 輔助：將按鈕設為未啟用樣式
+  function deactivateBtn(b) {
+    const bid = b.getAttribute("data-boss-id");
+    let diff = "normal";
+    if (bid.endsWith("_easy")) diff = "easy";
+    else if (bid.endsWith("_hard")) diff = "hard";
+    else if (bid.endsWith("_extreme")) diff = "extreme";
+    const dc = getDifficultyColor(diff);
+    b.setAttribute("data-active", "false");
+    b.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; opacity: 0.35;`;
+  }
+
   if (!isActive) {
-    // 欲選取，檢查上限
-    const currentActiveCount = document.querySelectorAll(".edit-char-boss-btn[data-active='true']").length;
-    if (currentActiveCount + reservedCount >= 12) {
-      const reservedNote = reservedCount > 0 ? `（含已設定重置券的 ${reservedCount} 隻）` : "";
-      alert(`最多只能選擇 12 隻 BOSS！${reservedNote}`);
-      return;
+    // 檢查同 group 內是否已有選取的難度
+    const sameGroupActiveBtns = document.querySelectorAll(`.edit-char-boss-btn[data-group-key="${groupKey}"][data-active="true"]`);
+
+    if (sameGroupActiveBtns.length > 0) {
+      // 同 group 難度切換：取消舊的，啟用新的，不計上限
+      sameGroupActiveBtns.forEach(b => deactivateBtn(b));
+      activateBtn(btn);
+    } else {
+      // 全新 group：檢查 12 隻上限
+      const currentActiveCount = document.querySelectorAll(".edit-char-boss-btn[data-active='true']").length;
+      if (currentActiveCount + reservedCount >= 12) {
+        const reservedNote = reservedCount > 0 ? `（含已設定重置券的 ${reservedCount} 隻）` : "";
+        alert(`最多只能選擇 12 隻 BOSS！${reservedNote}`);
+        return;
+      }
+      activateBtn(btn);
     }
-
-    btn.setAttribute("data-active", "true");
-
-    let finalDiff = "normal";
-    if (bossId.endsWith("_easy")) finalDiff = "easy";
-    else if (bossId.endsWith("_hard")) finalDiff = "hard";
-    else if (bossId.endsWith("_extreme")) finalDiff = "extreme";
-    else if (bossId.endsWith("_chaos")) finalDiff = "chaos";
-
-    const dc = getDifficultyColor(finalDiff);
-    btn.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; box-shadow: 0 0 8px ${dc.shadow}; transform: scale(1.1);`;
   } else {
-    btn.setAttribute("data-active", "false");
-
-    let finalDiff = "normal";
-    if (bossId.endsWith("_easy")) finalDiff = "easy";
-    else if (bossId.endsWith("_hard")) finalDiff = "hard";
-    else if (bossId.endsWith("_extreme")) finalDiff = "extreme";
-
-    const dc = getDifficultyColor(finalDiff);
-    btn.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; opacity: 0.35;`;
+    // 取消選取
+    deactivateBtn(btn);
   }
 
   // 頭像亮度連動
