@@ -166,11 +166,12 @@
 
   <!-- 重置券設定彈窗 -->
   <div id="resetModal" class="modal" onclick="handleOverlayClick(event, closeResetConfigModal)">
-    <div class="modal-content reset-modal-content">
-      <h3>設定角色的重置券 BOSS</h3>
-      <div id="modalBody"></div>
-      <br>
-      <button class="btn" onclick="closeResetConfigModal()">關閉</button>
+    <div class="modal-content" style="max-width: 880px; width: 95%; text-align: left; max-height: 90vh; display: flex; flex-direction: column;">
+      <h3 style="margin-top: 0; margin-bottom: 12px; flex-shrink: 0;">🎟️ 設定角色的重置券 BOSS</h3>
+      <div id="modalBody" style="flex: 1; min-height: 0; display: flex; flex-direction: column;"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px;">
+        <button class="btn" onclick="closeResetConfigModal()">完成</button>
+      </div>
     </div>
   </div>
 

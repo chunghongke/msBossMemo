@@ -180,6 +180,7 @@ function getDifficultyColor(difficulty) {
       return { text: '普', bg: '#2e4f6a', border: '#3d6a8a', textColor: '#fff', shadow: 'rgba(46, 79, 106, 0.6)' };
   }
 }
+window.getDifficultyColor = getDifficultyColor;
 
 window.openEditCharBossesModal = function(charId) {
   currentEditingCharId = charId;
@@ -252,9 +253,9 @@ window.openEditCharBossesModal = function(charId) {
       });
 
       const cardHtml = `
-        <div class="boss-card" style="display: flex; flex-direction: column; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: border-color 0.2s;">
+        <div class="boss-card" style="display: flex; flex-direction: column; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: border-color 0.2s;">
           <div style="width: 100%; height: 70px; display: flex; justify-content: center; align-items: center; background: #0f172a; border-radius: 6px; overflow: hidden; position: relative;">
-            <img src="./images/bosses/${groupKey}.png" onerror="this.src='./icon.png'" id="img_${groupKey}"
+            <img src="./images/bosses/${groupKey}.png?v=1" onerror="this.src='./icon.png'" id="img_${groupKey}"
               style="max-width: 100%; max-height: 100%; object-fit: contain; filter: ${hasCheckedBoss ? 'none' : 'grayscale(100%)'}; opacity: ${hasCheckedBoss ? '1' : '0.4'}; transition: all 0.25s;" />
             <span style="position: absolute; bottom: 3px; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.9); white-space: nowrap; max-width: 95%; overflow: hidden; text-overflow: ellipsis;">${group.name}</span>
           </div>
