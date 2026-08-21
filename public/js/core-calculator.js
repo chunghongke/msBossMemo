@@ -25,7 +25,7 @@ function getRemovedCompletedBosses(c) {
 
     const stillAssigned = record.entryIndex === 2
       ? (c.resetBossIds && c.resetBossIds.includes(record.bossId))
-      : (!c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(record.bossId));
+      : (c.bossIds && c.bossIds.includes(record.bossId));
 
     if (stillAssigned) return;
 
@@ -60,7 +60,7 @@ function calculateCharacterCrystal(c) {
   window.config.bosses.forEach(boss => {
     if (!boss.crystalValue) return;
 
-    const inBossIds = !c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(boss.id);
+    const inBossIds = c.bossIds && c.bossIds.includes(boss.id);
     const inResetBossIds = c.resetBossIds && c.resetBossIds.includes(boss.id);
     if (!inBossIds && !inResetBossIds) return;
 
@@ -110,7 +110,7 @@ function calculateCharacterShard(c) {
   window.config.bosses.forEach(boss => {
     if (!boss.erionVestiges) return;
 
-    const inBossIds = !c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(boss.id);
+    const inBossIds = c.bossIds && c.bossIds.includes(boss.id);
     const inResetBossIds = c.resetBossIds && c.resetBossIds.includes(boss.id);
     if (!inBossIds && !inResetBossIds) return;
 

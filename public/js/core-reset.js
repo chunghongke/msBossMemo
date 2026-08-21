@@ -75,7 +75,7 @@ function ensureDefaultSingleTeams() {
     for (let entry = 1; entry <= maxEntries; entry++) {
       allChars.forEach(c => {
         // entry 1（首次刷）只有角色本來排定要打的 BOSS 才建立紀錄，不是每隻 BOSS 都要建
-        const hasBossAssigned = !c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(boss.id);
+        const hasBossAssigned = c.bossIds && c.bossIds.includes(boss.id);
         if (entry === 1 && !hasBossAssigned) {
           return;
         }

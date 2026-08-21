@@ -158,7 +158,7 @@ function renderApp() {
         const bossCellEntries = [];
 
         window.config.bosses.forEach(boss => {
-          const inBossIds = !c.bossIds || c.bossIds.length === 0 || c.bossIds.includes(boss.id);
+          const inBossIds = c.bossIds && c.bossIds.includes(boss.id);
           const inResetBossIds = c.resetBossIds && c.resetBossIds.includes(boss.id);
 
           // 這個 boss 既不是角色本來排定的難度，也沒有設定重置券打這裡，跟這個角色完全無關，略過
@@ -306,10 +306,23 @@ function renderApp() {
           }
         });
 
-        // 已完成的 BOSS 排到後面，未完成的排前面；同狀態內維持原本順序
-        bossCellEntries
-          .sort((a, b) => (a.isCompleted === b.isCompleted) ? 0 : (a.isCompleted ? 1 : -1))
-          .forEach(entryItem => { playerHTML += entryItem.html; });
+        if (bossCellEntries.length === 0) {
+          playerHTML += `
+            <div style="grid-column: 1 / -1; padding: 22px 16px; text-align: center; background: var(--bg-hover, rgba(0,0,0,0.03)); border: 1px dashed var(--border-color); border-radius: 8px; margin: 4px 0;">
+              <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 8px;">⚠️ 尚未設定此角色要挑戰的 BOSS 清單</div>
+              ${isOwner ? `
+                <button class="btn" style="font-size: 12px; padding: 4px 14px;" onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')">
+                  ✏️ 立即設定 BOSS 清單
+                </button>
+              ` : `<span style="font-size: 12px; color: var(--text-muted);">（需由角色擁有者設定）</span>`}
+            </div>
+          `;
+        } else {
+          // 已完成的 BOSS 排到後面，未完成的排前面；同狀態內維持原本順序
+          bossCellEntries
+            .sort((a, b) => (a.isCompleted === b.isCompleted) ? 0 : (a.isCompleted ? 1 : -1))
+            .forEach(entryItem => { playerHTML += entryItem.html; });
+        }
 
         playerHTML += `
             </div>

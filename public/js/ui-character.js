@@ -104,6 +104,11 @@ window.submitNewCharacter = function() {
   const activeButtons = document.querySelectorAll(".new-char-boss-btn[data-active='true']");
   activeButtons.forEach(btn => selectedBossIds.push(btn.getAttribute("data-boss-id")));
 
+  if (selectedBossIds.length === 0) {
+    alert("⚠️ 新增角色必須至少選擇 1 隻要挑戰的 BOSS！");
+    return;
+  }
+
   if (selectedBossIds.length > 12) {
     alert(`最多只能選擇 12 隻 BOSS！(目前勾選了 ${selectedBossIds.length} 隻)`);
     return;
