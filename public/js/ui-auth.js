@@ -99,6 +99,8 @@ window.openAuthModal = function(mode = 'login') {
   const titleText = document.getElementById("authModalTitleText");
   const titleIcon = document.getElementById("authModalTitleIcon");
   const closeBtn = document.getElementById("authModalCloseBtn");
+  const loginCancelBtn = document.getElementById("authLoginCancelBtn");
+  const regCancelBtn = document.getElementById("authRegCancelBtn");
   if (!modal) return;
 
   // 清除註冊表單輸入
@@ -110,9 +112,16 @@ window.openAuthModal = function(mode = 'login') {
   if (confirmInput) confirmInput.value = "";
 
   const currentAuth = getAuthenticatedPlayer();
-  // 已登入才可關閉（✕按鈕顯示），未登入強制鎖定
   const canClose = !!currentAuth;
+
+  // ✕ 按鈕：只有已登入才顯示
   if (closeBtn) closeBtn.style.display = canClose ? "block" : "none";
+  // 登入表單取消按鈕：只有已登入才顯示
+  if (loginCancelBtn) loginCancelBtn.style.display = canClose ? "inline-block" : "none";
+  // 建立玩家取消按鈕：已登入顯示「取消」；未登入顯示「← 返回登入」
+  if (regCancelBtn) {
+    regCancelBtn.textContent = canClose ? "取消" : "← 返回登入";
+  }
 
   if (mode === 'register_only') {
     if (tabHeader) tabHeader.style.display = "none";
@@ -140,6 +149,18 @@ window.closeAuthModal = function() {
   if (!currentAuth) return;
   const modal = document.getElementById("authModal");
   if (modal) modal.style.display = "none";
+};
+
+// 建立新玩家表單的取消按鈕：
+// - 已登入（切換玩家 → 建立新玩家 Tab）→ 關閉 Modal
+// - 未登入（強制登入模式）→ 切回登入 Tab（不能關閉）
+window.authRegCancel = function() {
+  const currentAuth = getAuthenticatedPlayer();
+  if (currentAuth) {
+    closeAuthModal();
+  } else {
+    switchAuthTab('login');
+  }
 };
 
 window.switchAuthTab = function(tab) {

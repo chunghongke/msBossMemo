@@ -469,7 +469,7 @@
             <button type="button" id="authModalLogoutBtn" class="btn btn-secondary" onclick="logoutPlayer()" style="font-size: 12px; color: #ef4444; border-color: rgba(239, 68, 68, 0.4); display: none;">🚪 登出目前身分</button>
           </div>
           <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn btn-secondary" onclick="closeAuthModal()">取消</button>
+            <button type="button" id="authLoginCancelBtn" class="btn btn-secondary" onclick="closeAuthModal()" style="display: none;">取消</button>
             <button type="submit" id="authLoginSubmitBtn" class="btn">確認登入</button>
           </div>
         </div>
@@ -495,7 +495,7 @@
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
-          <button type="button" class="btn btn-secondary" onclick="closeAuthModal()">取消</button>
+          <button type="button" id="authRegCancelBtn" class="btn btn-secondary" onclick="authRegCancel()">取消</button>
           <button type="submit" id="authRegSubmitBtn" class="btn">建立並登入</button>
         </div>
       </form>
