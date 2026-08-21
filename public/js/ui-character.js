@@ -1,6 +1,9 @@
 /**
  * ui-character.js
- * Contains: openAddCharacterModal, closeAddCharacterModal, submitNewCharacter, openRenameCharModal, closeRenameCharModal, submitRenameChar, openEditCharBossesModal, handleCharBossCheckboxLimit, updateCharBossCountDisplay, closeEditCharBossesModal, saveEditCharBosses
+ * Contains: openAddCharacterModal, closeAddCharacterModal, submitNewCharacter,
+ *           openRenameCharModal, closeRenameCharModal, submitRenameChar,
+ *           openEditCharBossesModal, toggleBossSelection, updateCharBossCountDisplay,
+ *           closeEditCharBossesModal, saveEditCharBosses
  */
 
 // ==========================================
@@ -86,7 +89,7 @@ window.submitNewCharacter = function() {
   window.config.players[playerIndex].characters.push(newCharacter);
 
   if (window.db && window.dbRef && window.dbSet) {
-    const playersRef = window.dbRef(window.db, 'players');
+    const playersRef = window.dbRef(window.db, '/players');
     window.dbSet(playersRef, window.config.players)
       .then(() => {
         alert(`成功為 ${playerName} 新增角色：${charName}！`);
@@ -102,6 +105,9 @@ window.submitNewCharacter = function() {
   }
 };
 
+// ==========================================
+// 重新命名角色
+// ==========================================
 let renamingCharId = null;
 
 window.openRenameCharModal = function(charId, currentName) {
@@ -130,7 +136,7 @@ window.submitRenameChar = function() {
 
   let updated = false;
   window.config.players.forEach(p => {
-    p.characters.forEach(c => {
+    (p.characters || []).forEach(c => {
       if (c.id === renamingCharId) {
         c.name = newName;
         updated = true;
@@ -144,7 +150,7 @@ window.submitRenameChar = function() {
   }
 
   if (window.db && window.dbRef && window.dbSet) {
-    const playersRef = window.dbRef(window.db, 'players');
+    const playersRef = window.dbRef(window.db, '/players');
     window.dbSet(playersRef, window.config.players)
       .then(() => { window.closeRenameCharModal(); })
       .catch(err => {
@@ -153,10 +159,27 @@ window.submitRenameChar = function() {
       });
   }
 };
+
 // ==========================================
-// 編輯角色 BOSS 清單邏輯
+// 編輯角色 BOSS 清單（圖片卡片 + 圓形難度按鈕）
 // ==========================================
 let currentEditingCharId = null;
+
+// 難度色彩輔助函式 (依遊戲難度配色)
+function getDifficultyColor(difficulty) {
+  switch (difficulty) {
+    case 'easy':
+      return { text: '簡', bg: '#4a9ec8', border: '#6bb8e0', textColor: '#fff', shadow: 'rgba(74, 158, 200, 0.6)' };
+    case 'normal':
+      return { text: '普', bg: '#2e4f6a', border: '#3d6a8a', textColor: '#fff', shadow: 'rgba(46, 79, 106, 0.6)' };
+    case 'hard':
+      return { text: '困', bg: '#7a1840', border: '#a02055', textColor: '#fff', shadow: 'rgba(122, 24, 64, 0.6)' };
+    case 'extreme':
+      return { text: '極', bg: '#0f0f1a', border: '#e84020', textColor: '#e84020', shadow: 'rgba(232, 64, 32, 0.7)' };
+    default:
+      return { text: '普', bg: '#2e4f6a', border: '#3d6a8a', textColor: '#fff', shadow: 'rgba(46, 79, 106, 0.6)' };
+  }
+}
 
 window.openEditCharBossesModal = function(charId) {
   currentEditingCharId = charId;
@@ -176,25 +199,130 @@ window.openEditCharBossesModal = function(charId) {
   }
   if (!targetChar) { alert("找不到該角色資料！"); return; }
 
-  titleEl.innerText = `✏️ 編輯 ${targetChar.name} 的 BOSS 清單`;
+  if (titleEl) titleEl.innerText = `✏️ 編輯 ${targetChar.name} 的 BOSS 清單`;
   const reservedCount = targetChar.resetBossIds ? targetChar.resetBossIds.length : 0;
 
   bossListContainer.innerHTML = "";
+
   if (window.config.bosses && Array.isArray(window.config.bosses)) {
+    // 依據 getBossGroupKey 進行分組
+    const groupMap = new Map();
     window.config.bosses.forEach(boss => {
-      const isChecked = targetChar.bossIds && targetChar.bossIds.includes(boss.id);
-      bossListContainer.innerHTML += `
-        <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #334155 !important;">
-          <input type="checkbox" class="edit-char-boss-checkbox" value="${boss.id}" ${isChecked ? 'checked' : ''} onchange="handleCharBossCheckboxLimit(this, '.edit-char-boss-checkbox', 'editCharBossCount', ${reservedCount})" />
-          ${boss.name}
-        </label>
+      const gKey = getBossGroupKey(boss.id);
+      if (!groupMap.has(gKey)) {
+        // 取 boss 名稱，移除難度前綴如 "(簡)"
+        const cleanName = boss.name.replace(/^\([^)]+\)\s*/, "");
+        groupMap.set(gKey, {
+          id: gKey,
+          name: cleanName,
+          bosses: []
+        });
+      }
+      groupMap.get(gKey).bosses.push(boss);
+    });
+
+    // 渲染分組卡片
+    groupMap.forEach((group, groupKey) => {
+      const hasCheckedBoss = group.bosses.some(boss =>
+        targetChar.bossIds && targetChar.bossIds.includes(boss.id)
+      );
+
+      let buttonsHtml = "";
+      group.bosses.forEach(boss => {
+        const isChecked = targetChar.bossIds && targetChar.bossIds.includes(boss.id);
+        const difficulty = boss.difficulty || "normal";
+        const dc = getDifficultyColor(difficulty);
+
+        // 圓形按鈕樣式 (選中：實心底色；未選中：半透明+邊框)
+        const activeStyle = `background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; box-shadow: 0 0 8px ${dc.shadow}; transform: scale(1.1);`;
+        const inactiveStyle = `background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; opacity: 0.35;`;
+
+        buttonsHtml += `
+          <button type="button"
+            class="edit-char-boss-btn"
+            data-boss-id="${boss.id}"
+            data-group-key="${groupKey}"
+            data-active="${isChecked ? 'true' : 'false'}"
+            style="width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; ${isChecked ? activeStyle : inactiveStyle}"
+            onclick="toggleBossSelection(this, '${boss.id}', '${groupKey}', ${reservedCount})"
+            title="${boss.name}">
+            ${dc.text}
+          </button>
+        `;
+      });
+
+      const cardHtml = `
+        <div class="boss-card" style="display: flex; flex-direction: column; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: border-color 0.2s;">
+          <div style="width: 100%; height: 70px; display: flex; justify-content: center; align-items: center; background: #0f172a; border-radius: 6px; overflow: hidden; position: relative;">
+            <img src="./images/bosses/${groupKey}.png" onerror="this.src='./icon.png'" id="img_${groupKey}"
+              style="max-width: 100%; max-height: 100%; object-fit: contain; filter: ${hasCheckedBoss ? 'none' : 'grayscale(100%)'}; opacity: ${hasCheckedBoss ? '1' : '0.4'}; transition: all 0.25s;" />
+            <span style="position: absolute; bottom: 3px; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.9); white-space: nowrap; max-width: 95%; overflow: hidden; text-overflow: ellipsis;">${group.name}</span>
+          </div>
+          <div style="display: flex; gap: 5px; width: 100%; justify-content: center; flex-wrap: wrap;">
+            ${buttonsHtml}
+          </div>
+        </div>
       `;
+      bossListContainer.innerHTML += cardHtml;
     });
   }
-  updateCharBossCountDisplay('.edit-char-boss-checkbox', 'editCharBossCount', reservedCount);
+
+  updateCharBossCountDisplay(reservedCount);
   modal.style.display = "flex";
 };
 
+window.toggleBossSelection = function(btn, bossId, groupKey, reservedCount) {
+  reservedCount = reservedCount || 0;
+  const isActive = btn.getAttribute("data-active") === "true";
+
+  if (!isActive) {
+    // 欲選取，檢查上限
+    const currentActiveCount = document.querySelectorAll(".edit-char-boss-btn[data-active='true']").length;
+    if (currentActiveCount + reservedCount >= 12) {
+      const reservedNote = reservedCount > 0 ? `（含已設定重置券的 ${reservedCount} 隻）` : "";
+      alert(`最多只能選擇 12 隻 BOSS！${reservedNote}`);
+      return;
+    }
+
+    btn.setAttribute("data-active", "true");
+
+    let finalDiff = "normal";
+    if (bossId.endsWith("_easy")) finalDiff = "easy";
+    else if (bossId.endsWith("_hard")) finalDiff = "hard";
+    else if (bossId.endsWith("_extreme")) finalDiff = "extreme";
+    else if (bossId.endsWith("_chaos")) finalDiff = "chaos";
+
+    const dc = getDifficultyColor(finalDiff);
+    btn.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; box-shadow: 0 0 8px ${dc.shadow}; transform: scale(1.1);`;
+  } else {
+    btn.setAttribute("data-active", "false");
+
+    let finalDiff = "normal";
+    if (bossId.endsWith("_easy")) finalDiff = "easy";
+    else if (bossId.endsWith("_hard")) finalDiff = "hard";
+    else if (bossId.endsWith("_extreme")) finalDiff = "extreme";
+
+    const dc = getDifficultyColor(finalDiff);
+    btn.style.cssText = `width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 11px; font-weight: bold; transition: all 0.2s; background: ${dc.bg}; color: ${dc.textColor}; border: 2px solid ${dc.border}; opacity: 0.35;`;
+  }
+
+  // 頭像亮度連動
+  const groupBtns = document.querySelectorAll(`.edit-char-boss-btn[data-group-key="${groupKey}"][data-active="true"]`);
+  const img = document.getElementById(`img_${groupKey}`);
+  if (img) {
+    if (groupBtns.length > 0) {
+      img.style.filter = "none";
+      img.style.opacity = "1";
+    } else {
+      img.style.filter = "grayscale(100%)";
+      img.style.opacity = "0.4";
+    }
+  }
+
+  updateCharBossCountDisplay(reservedCount);
+};
+
+// 原有 checkbox-limit 函式保留（供新增角色 Modal 使用）
 window.handleCharBossCheckboxLimit = function(checkbox, selector, countSpanId, reservedCount) {
   reservedCount = reservedCount || 0;
   const checked = document.querySelectorAll(`${selector}:checked`);
@@ -203,14 +331,20 @@ window.handleCharBossCheckboxLimit = function(checkbox, selector, countSpanId, r
     alert(`最多只能選擇 12 隻 BOSS！${reservedNote}`);
     checkbox.checked = false;
   }
-  updateCharBossCountDisplay(selector, countSpanId, reservedCount);
+  if (countSpanId) {
+    const span = document.getElementById(countSpanId);
+    if (span) {
+      const checkedCount = document.querySelectorAll(`${selector}:checked`).length;
+      span.innerText = `(已選 ${checkedCount} / 12)`;
+    }
+  }
 };
 
-window.updateCharBossCountDisplay = function(selector, countSpanId, reservedCount) {
+window.updateCharBossCountDisplay = function(reservedCount) {
   reservedCount = reservedCount || 0;
-  const span = document.getElementById(countSpanId);
+  const span = document.getElementById("editCharBossCount");
   if (!span) return;
-  const checkedCount = document.querySelectorAll(`${selector}:checked`).length;
+  const checkedCount = document.querySelectorAll(".edit-char-boss-btn[data-active='true']").length;
   const totalCount = checkedCount + reservedCount;
   const reservedNote = reservedCount > 0 ? `，含重置券 ${reservedCount}` : "";
   span.innerText = `(已選 ${checkedCount} / 12${reservedNote})`;
@@ -227,8 +361,8 @@ window.saveEditCharBosses = function() {
   if (!currentEditingCharId) return;
 
   const selectedBossIds = [];
-  const checkboxes = document.querySelectorAll(".edit-char-boss-checkbox:checked");
-  checkboxes.forEach(cb => selectedBossIds.push(cb.value));
+  const activeButtons = document.querySelectorAll(".edit-char-boss-btn[data-active='true']");
+  activeButtons.forEach(btn => selectedBossIds.push(btn.getAttribute("data-boss-id")));
 
   let targetChar = null;
   if (window.config.players) {
@@ -260,9 +394,18 @@ window.saveEditCharBosses = function() {
   if (!updated) { alert("更新失敗，找不到該角色！"); return; }
 
   if (window.db && window.dbRef && window.dbSet) {
-    const playersRef = window.dbRef(window.db, 'players');
+    const playersRef = window.dbRef(window.db, '/players');
     window.dbSet(playersRef, window.config.players)
-      .then(() => { alert("BOSS 清單更新成功！"); window.closeEditCharBossesModal(); })
-      .catch(err => { console.error("Firebase 寫入失敗：", err); alert("更新失敗，請檢查權限或網路。"); });
+      .then(() => {
+        renderApp();
+        closeEditCharBossesModal();
+      })
+      .catch(err => {
+        console.error("Firebase 寫入失敗：", err);
+        alert("更新失敗，請檢查權限或網路。");
+      });
+  } else {
+    renderApp();
+    closeEditCharBossesModal();
   }
 };

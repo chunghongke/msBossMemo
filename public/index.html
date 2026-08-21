@@ -203,15 +203,15 @@
 
   <!-- 編輯角色 BOSS 彈窗 -->
   <div id="editCharBossesModal" class="modal" onclick="handleOverlayClick(event, closeEditCharBossesModal)">
-    <div class="modal-content" style="max-width: 440px; text-align: left;">
-      <h3 id="editCharTitle" style="margin-top: 0; margin-bottom: 12px;">✏️ 編輯角色的 BOSS 清單</h3>
+    <div class="modal-content" style="max-width: 880px; width: 95%; text-align: left; max-height: 90vh; display: flex; flex-direction: column;">
+      <h3 id="editCharTitle" style="margin-top: 0; margin-bottom: 12px; flex-shrink: 0;">✏️ 編輯角色的 BOSS 清單</h3>
       
-      <div style="margin-bottom: 16px;">
-        <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px;">選擇要挑戰的 BOSS <span id="editCharBossCount" style="font-weight: normal; font-size: 13px; color: #64748b;">(已選 0 / 12)</span>：</label>
-        <div id="editCharBossList" style="max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;"></div>
+      <div style="margin-bottom: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <label style="display: block; font-weight: bold; margin-bottom: 8px; font-size: 14px; flex-shrink: 0;">選擇要挑戰的 BOSS <span id="editCharBossCount" style="font-weight: normal; font-size: 13px; color: #64748b;">(已選 0 / 12)</span>：</label>
+        <div id="editCharBossList" style="flex: 1; max-height: 500px; overflow-y: auto; border: 1px solid var(--border-color); padding: 16px; border-radius: 8px; background: var(--bg-hover); display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px;"></div>
       </div>
 
-      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+      <div style="display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 12px;">
         <button class="btn btn-secondary" onclick="closeEditCharBossesModal()">取消</button>
         <button class="btn" onclick="saveEditCharBosses()">儲存變更</button>
       </div>
