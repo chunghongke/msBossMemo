@@ -82,7 +82,10 @@ function renderApp() {
           data-collapse-key="${p.name}">
         <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
           <span>
-            <span class="player-avatar-btn" onclick="event.stopPropagation(); openAvatarPickerModal('${p.name.replace(/'/g, "\\\\'")}')" title="點擊更換頭像">${p.avatarEmoji || '👤'}</span>
+            ${isPrimary 
+              ? `<span class="player-avatar-btn" onclick="event.stopPropagation(); openAvatarPickerModal('${p.name.replace(/'/g, "\\\\'")}')" title="點擊更換頭像">${p.avatarEmoji || '👤'}</span>`
+              : `<span style="font-size: 16px; margin-right: 4px;">${p.avatarEmoji || '👤'}</span>`
+            }
             玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}
             ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
           </span>
@@ -106,8 +109,10 @@ function renderApp() {
         const charCrystal = crystalByCharId.get(c.id) || { earned: 0, expected: 0 };
         const charShard = shardByCharId.get(c.id) || { earned: 0, expected: 0 };
 
+        const isOwner = (p.name === primaryUser);
+
         playerHTML += `
-          <div class="character-card" draggable="true" data-char-id="${c.id}" data-player-name="${p.name}">
+          <div class="character-card" draggable="${isOwner ? 'true' : 'false'}" data-char-id="${c.id}" data-player-name="${p.name}">
             <div class="char-header">
               <div class="char-title" style="display: flex; align-items: center; gap: 6px;">
                 ${c.characterImage
@@ -117,22 +122,24 @@ function renderApp() {
                     </span>`
                   : '⚔️'}
                 ${c.name}
-                <button class="btn-icon" 
-                        onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')" 
-                        title="編輯角色的 BOSS 清單"
-                        style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
-                        onmouseover="this.style.background='#e2e8f0'" 
-                        onmouseout="this.style.background='transparent'">
-                  ✏️
-                </button>
-                <button class="btn-icon"
-                        onclick="event.stopPropagation(); openRenameCharModal('${c.id}', '${c.name.replace(/'/g, "\\\\'")}')"
-                        title="修改角色名稱"
-                        style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
-                        onmouseover="this.style.background='#e2e8f0'"
-                        onmouseout="this.style.background='transparent'">
-                  🖊️
-                </button>
+                ${isOwner ? `
+                  <button class="btn-icon" 
+                          onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')" 
+                          title="編輯角色的 BOSS 清單"
+                          style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
+                          onmouseover="this.style.background='#e2e8f0'" 
+                          onmouseout="this.style.background='transparent'">
+                    ✏️
+                  </button>
+                  <button class="btn-icon"
+                          onclick="event.stopPropagation(); openRenameCharModal('${c.id}', '${c.name.replace(/'/g, "\\\\'")}')"
+                          title="修改角色名稱"
+                          style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
+                          onmouseover="this.style.background='#e2e8f0'"
+                          onmouseout="this.style.background='transparent'">
+                    🖊️
+                  </button>
+                ` : ''}
                 ${charCrystal.expected > 0 ? `<span style="font-size:11px; color:#eab308; font-weight:normal; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(charCrystal.earned)} / ${formatCrystal(charCrystal.expected)}</span>` : ''}
                 ${charShard.expected > 0 ? `<span style="font-size:11px; color:#0ea5e9; font-weight:normal; display:inline-flex; align-items:center; gap:2px;" title="實際數量依你在多人 BOSS 選擇的撿取份數而定，這裡預計值先以「多人隊伍固定 1 份」估算"><img class="shard-icon" src="./shard-icon.png" alt="碎片" /> ${formatShardNumber(charShard.earned)} / ${formatShardNumber(charShard.expected)} 碎片</span>` : ''}
               </div>
@@ -232,8 +239,8 @@ function renderApp() {
                   const currentShares = hasChosen ? record.shardShares : "?";
                   shardTagHtml = `
                     <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
-                        onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"
-                        title="設定這次撿取的艾里溫碎片份數">
+                        ${isOwner ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片份數！')"`}
+                        title="${isOwner ? '設定這次撿取的艾里溫碎片份數' : '艾里溫碎片份數（唯讀）'}">
                       <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentShares}/${maxPartySize}份
                     </div>
                   `;
@@ -260,13 +267,14 @@ function renderApp() {
                 html: `
                 <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'} ${entry === 2 ? 'cross-diff-reset' : ''}"
                     data-record-key="${recordKey}"
-                    onclick="toggleBossStatus('${recordKey}')"
-                    oncontextmenu="openPartyModal(event, '${c.id}', '${boss.id}', ${entry})"
-                    ontouchstart="handleCellTouchStart(event, '${c.id}', '${boss.id}', ${entry})"
+                    style="${isOwner ? '' : 'cursor: default;'}"
+                    onclick="${isOwner ? `toggleBossStatus('${recordKey}')` : `alert('⚠️ 您只能修改自己角色的 BOSS 攻略狀態！')`}"
+                    oncontextmenu="${isOwner ? `openPartyModal(event, '${c.id}', '${boss.id}', ${entry})` : `event.preventDefault(); alert('⚠️ 只能由角色擁有者編輯隊伍成員！')`}"
+                    ontouchstart="${isOwner ? `handleCellTouchStart(event, '${c.id}', '${boss.id}', ${entry})` : ``}"
                     ontouchmove="handleCellTouchMove(event)"
                     ontouchend="handleCellTouchEnd(event)"
                     ontouchcancel="handleCellTouchEnd(event)"
-                    title="${cellTitle}">
+                    title="${cellTitle}${isOwner ? '' : ' (唯讀)'}">
                   ${shardTagHtml}
                   ${scheduleTagHtml}
                   <div class="boss-name">${bossDisplayName}</div>

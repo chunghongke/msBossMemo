@@ -7,12 +7,17 @@
 // 玩家管理（新增玩家 / 頭像）
 // ==========================================
 function openAddPlayerModal() {
-  document.getElementById("newPlayerName").value = "";
-  document.getElementById("addPlayerModal").style.display = "flex";
+  if (typeof openAuthModal === 'function') {
+    openAuthModal('register_only');
+  } else {
+    document.getElementById("newPlayerName").value = "";
+    document.getElementById("addPlayerModal").style.display = "flex";
+  }
 }
 
 function closeAddPlayerModal() {
-  document.getElementById("addPlayerModal").style.display = "none";
+  const modal = document.getElementById("addPlayerModal");
+  if (modal) modal.style.display = "none";
 }
 
 function isSingleEmoji(str) {
@@ -49,6 +54,12 @@ function renderAvatarEmojiGrid() {
 let editingAvatarPlayerName = null;
 
 function openAvatarPickerModal(playerName) {
+  const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+  if (playerName !== primaryUser) {
+    alert("⚠️ 您只能更換自己的頭像！");
+    return;
+  }
+
   editingAvatarPlayerName = playerName;
   renderAvatarEmojiGrid();
   const player = window.config.players.find(p => p.name === playerName);

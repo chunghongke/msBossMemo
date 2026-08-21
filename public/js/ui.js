@@ -51,29 +51,24 @@ function toggleAllPlayers(shouldCollapse) {
 // 主要玩家選擇
 // ==========================================
 function getPrimaryUser() {
+  if (typeof window.getAuthenticatedPlayer === 'function') {
+    const authUser = window.getAuthenticatedPlayer();
+    if (authUser) return authUser;
+  }
   return localStorage.getItem("preferred_primary_user") || "";
 }
 
 function changePrimaryUser(userName) {
   localStorage.setItem("preferred_primary_user", userName);
+  if (typeof window.updateAuthHeaderUI === 'function') {
+    window.updateAuthHeaderUI();
+  }
   renderApp();
 }
 
 function updateUserSelectOptions() {
-  const select = document.getElementById("userSelect");
-  if (!select) return;
-
-  const currentPrimary = getPrimaryUser();
-  select.innerHTML = `<option value="">-- 不排序 (預設) --</option>`;
-
-  if (window.config.players && Array.isArray(window.config.players)) {
-    window.config.players.forEach(p => {
-      if (p && p.name) {
-        const isSelected = p.name === currentPrimary ? 'selected' : '';
-        const avatar = p.avatarEmoji || '👤';
-        select.innerHTML += `<option value="${p.name}" ${isSelected}>${avatar} ${p.name}</option>`;
-      }
-    });
+  if (typeof window.updateAuthHeaderUI === 'function') {
+    window.updateAuthHeaderUI();
   }
 }
 

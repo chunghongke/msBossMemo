@@ -51,6 +51,7 @@
       const weeklyResetHappened = checkAndPerformWeeklyReset();
       ensureDefaultSingleTeams();
       if (weeklyResetHappened) saveStoreToCloud();
+      if (typeof checkAuthAndInit === 'function') checkAuthAndInit();
       renderApp();
     });
   </script>
@@ -66,11 +67,7 @@
       <a class="theme-toggle-btn" href="../vipCalculate/index.html">💎 VIP 升階計算機</a>
     </div>
     <div class="controls" style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-      <div class="controls-select-group">
-        <label for="userSelect" style="font-weight: bold; font-size: 14px;">排在最上方：</label>
-        <select id="userSelect" onchange="changePrimaryUser(this.value)" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px;">
-        </select>
-      </div>
+      <div id="authHeaderProfile"></div>
       <button class="btn" onclick="openAddCharacterModal()">➕ 新增角色</button>
       <button class="btn" onclick="openAddPlayerModal()">+ 新增玩家</button>
       <button class="btn btn-secondary" onclick="scrollToGuests()">👤 Guest 清單</button>
@@ -435,8 +432,111 @@
     </div>
   </div>
 
+  <!-- 身分驗證 Modal (HongLedger 風格) -->
+  <div id="authModal" class="modal" onclick="handleOverlayClick(event, closeAuthModal)">
+    <div class="modal-content" style="max-width: 420px; width: 95%; text-align: left; position: relative;">
+      <button onclick="closeAuthModal()" style="position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); line-height: 1;">✕</button>
+      <h3 style="margin-top: 0; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+        <span id="authModalTitleIcon">🔐</span> <span id="authModalTitleText">玩家身分驗證</span>
+      </h3>
+
+      <!-- 頁籤切換 -->
+      <div id="authTabHeader" style="display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 16px;">
+        <button id="authTabLogin" type="button" class="auth-tab-btn active" onclick="switchAuthTab('login')" style="flex: 1; padding: 8px 12px; background: none; border: none; font-weight: bold; cursor: pointer; color: var(--text-main); font-size: 14px; border-bottom: 2px solid #3b82f6;">🔑 選擇現有玩家</button>
+        <button id="authTabRegister" type="button" class="auth-tab-btn" onclick="switchAuthTab('register')" style="flex: 1; padding: 8px 12px; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 14px; border-bottom: 2px solid transparent;">➕ 建立新玩家</button>
+      </div>
+
+      <!-- 錯誤提示 -->
+      <div id="authErrorMsg" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px;"></div>
+
+      <!-- 登入表單 -->
+      <form id="authFormLogin" onsubmit="handleLoginSubmit(event)">
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">選擇主要玩家：</label>
+          <select id="authPlayerSelect" onchange="handleAuthPlayerChange()" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+          </select>
+        </div>
+
+        <!-- 密碼輸入區 -->
+        <div id="authPasswordArea" style="margin-bottom: 14px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">輸入密碼：</label>
+          <input type="password" id="authLoginPassword" placeholder="請輸入 6 碼密碼" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 18px;">
+          <div>
+            <button type="button" id="authModalLogoutBtn" class="btn btn-secondary" onclick="logoutPlayer()" style="font-size: 12px; color: #ef4444; border-color: rgba(239, 68, 68, 0.4); display: none;">🚪 登出目前身分</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn btn-secondary" onclick="closeAuthModal()">取消</button>
+            <button type="submit" id="authLoginSubmitBtn" class="btn">確認登入</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- 建立新玩家表單 -->
+      <form id="authFormRegister" onsubmit="handleRegisterSubmit(event)" style="display: none;">
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">玩家名稱：</label>
+          <input type="text" id="authRegName" placeholder="例如：巴塔" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">代表頭像 (Emoji)：</label>
+          <input type="text" id="authRegEmoji" value="👤" maxlength="4" style="width: 70px; padding: 6px; text-align: center; font-size: 18px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">設定密碼：</label>
+          <input type="password" id="authRegPassword" placeholder="至少 3 碼" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">確認密碼：</label>
+          <input type="password" id="authRegPasswordConfirm" placeholder="再次輸入密碼" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+          <button type="button" class="btn btn-secondary" onclick="closeAuthModal()">取消</button>
+          <button type="submit" id="authRegSubmitBtn" class="btn">建立並登入</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 修改密碼 Modal -->
+  <div id="changePasswordModal" class="modal" onclick="handleOverlayClick(event, closeChangePasswordModal)">
+    <div class="modal-content" style="max-width: 400px; width: 95%; text-align: left; position: relative;">
+      <button onclick="closeChangePasswordModal()" style="position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); line-height: 1;">✕</button>
+      <h3 style="margin-top: 0; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+        <span>🔑</span> <span>修改玩家密碼</span>
+      </h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px; margin-top: 0;" id="changePwdPlayerLabel">目前玩家：</p>
+      
+      <div id="changePwdErrorMsg" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px;"></div>
+
+      <form id="changePasswordForm" onsubmit="handleChangePasswordSubmit(event)">
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">目前密碼：</label>
+          <input type="password" id="changePwdCurrent" placeholder="請輸入舊密碼" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">新密碼：</label>
+          <input type="password" id="changePwdNew" placeholder="至少 3 碼" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">確認新密碼：</label>
+          <input type="password" id="changePwdConfirm" placeholder="再次輸入新密碼" style="width: 100%; padding: 8px; box-sizing: border-box; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px;">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="closeChangePasswordModal()">取消</button>
+          <button type="submit" id="changePwdSubmitBtn" class="btn">儲存新密碼</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- 核心工具與資料層 -->
   <script src="./js/ui-alert.js"></script>
+  <script src="./js/ui-auth.js"></script>
   <script src="./js/app-core.js"></script>
   <script src="./js/core-reset.js"></script>
   <script src="./js/core-calculator.js"></script>

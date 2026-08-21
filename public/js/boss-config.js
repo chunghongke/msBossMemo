@@ -31,14 +31,15 @@ function getDiffColor(difficulty) {
 }
 
 window.openResetConfigModal = function() {
-  const primaryUser = getPrimaryUser();
-  const allChars = getAllCharacters();
-  let targetChars = allChars.filter(c => c.playerName === primaryUser);
-
-  if (targetChars.length === 0 && window.config.players && window.config.players.length > 0) {
-    const firstPlayerName = window.config.players[0].name;
-    targetChars = allChars.filter(c => c.playerName === firstPlayerName);
+  const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+  if (!primaryUser) {
+    alert("⚠️ 請先選擇/登入主要玩家！");
+    if (typeof openAuthModal === 'function') openAuthModal();
+    return;
   }
+
+  const allChars = getAllCharacters();
+  const targetChars = allChars.filter(c => c.playerName === primaryUser);
 
   if (targetChars.length > 0) {
     const exists = targetChars.some(c => c.id === currentResetCharId);
@@ -63,36 +64,24 @@ function renderResetModalBody() {
   if (!modalBody) return;
 
   const resetableBosses = (window.config.bosses || []).filter(b => b.allowReset);
-  const primaryUser = getPrimaryUser();
+  const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
   const allChars = getAllCharacters();
-  let targetChars = allChars.filter(c => c.playerName === primaryUser);
-  let displayedPlayerName = primaryUser;
-  let isFallback = false;
-
-  if (targetChars.length === 0 && window.config.players && window.config.players.length > 0) {
-    const firstPlayerName = window.config.players[0].name;
-    targetChars = allChars.filter(c => c.playerName === firstPlayerName);
-    displayedPlayerName = firstPlayerName;
-    isFallback = true;
-  }
+  const targetChars = allChars.filter(c => c.playerName === primaryUser);
 
   if (targetChars.length === 0) {
-    modalBody.innerHTML = `<div style="text-align:center; padding: 30px; color: var(--text-muted);">⚠️ 尚未選擇主要玩家或該玩家尚無任何角色</div>`;
+    modalBody.innerHTML = `<div style="text-align:center; padding: 30px; color: var(--text-muted);">⚠️ 尚未為玩家「${primaryUser}」建立任何角色，請先新增角色！</div>`;
     return;
   }
 
-  // 確保 currentResetCharId 有效
+  // 確保 currentResetCharId 有效並取得當前角色物件
   let currentChar = targetChars.find(c => c.id === currentResetCharId);
   if (!currentChar) {
     currentChar = targetChars[0];
     currentResetCharId = currentChar.id;
   }
 
-  // 1. 頂部玩家提示與角色 Tab 切換列
-  const hintText = isFallback
-    ? `⚠️ 尚未選擇主要玩家（或該玩家無角色），目前顯示的是「${displayedPlayerName}」的角色`
-    : `目前顯示的是主要玩家「${displayedPlayerName}」的角色`;
-  const hintColor = isFallback ? "#b45309" : "var(--text-muted)";
+  const hintText = `目前正在設定主要玩家「${primaryUser}」的角色重置券`;
+  const hintColor = "var(--text-muted)";
 
   let tabsHtml = `
     <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center;">

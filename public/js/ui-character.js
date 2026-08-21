@@ -10,6 +10,13 @@
 // 角色管理（新增 / 重新命名）
 // ==========================================
 window.openAddCharacterModal = function() {
+  const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+  if (!primaryUser) {
+    alert("⚠️ 請先選擇/登入主要玩家！");
+    if (typeof openAuthModal === 'function') openAuthModal();
+    return;
+  }
+
   const modal = document.getElementById("addCharacterModal");
   const playerSelect = document.getElementById("newCharPlayerSelect");
   const bossListContainer = document.getElementById("newCharBossList");
@@ -19,14 +26,9 @@ window.openAddCharacterModal = function() {
 
   nameInput.value = "";
 
-  playerSelect.innerHTML = "";
-  const primaryUser = getPrimaryUser();
-  if (window.config.players && Array.isArray(window.config.players)) {
-    window.config.players.forEach(p => {
-      const isSelected = p.name === primaryUser ? "selected" : "";
-      playerSelect.innerHTML += `<option value="${p.name}" ${isSelected}>👤 ${p.name}</option>`;
-    });
-  }
+  // 鎖定只能為當前登入的主要玩家新增角色
+  playerSelect.innerHTML = `<option value="${primaryUser}" selected>👤 ${primaryUser} (自己)</option>`;
+  playerSelect.disabled = true;
 
   bossListContainer.innerHTML = "";
   if (window.config.bosses && Array.isArray(window.config.bosses)) {
@@ -111,6 +113,14 @@ window.submitNewCharacter = function() {
 let renamingCharId = null;
 
 window.openRenameCharModal = function(charId, currentName) {
+  const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+  const allChars = typeof getAllCharacters === 'function' ? getAllCharacters() : [];
+  const char = allChars.find(c => c.id === charId);
+  if (!char || char.playerName !== primaryUser) {
+    alert("⚠️ 您只能修改自己角色的名稱！");
+    return;
+  }
+
   renamingCharId = charId;
   const input = document.getElementById("renameCharInput");
   if (input) {
@@ -183,6 +193,14 @@ function getDifficultyColor(difficulty) {
 window.getDifficultyColor = getDifficultyColor;
 
 window.openEditCharBossesModal = function(charId) {
+  const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+  const allChars = typeof getAllCharacters === 'function' ? getAllCharacters() : [];
+  const char = allChars.find(c => c.id === charId);
+  if (!char || char.playerName !== primaryUser) {
+    alert("⚠️ 您只能編輯自己角色的 BOSS 清單！");
+    return;
+  }
+
   currentEditingCharId = charId;
   const modal = document.getElementById("editCharBossesModal");
   const titleEl = document.getElementById("editCharTitle");

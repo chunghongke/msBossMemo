@@ -14,6 +14,20 @@
  */
 
   function toggleBossStatus(recordKey) {
+    const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+    if (!primaryUser) {
+      alert("⚠️ 請先選擇/登入主要玩家！");
+      if (typeof openAuthModal === 'function') openAuthModal();
+      return;
+    }
+
+    const allChars = typeof getAllCharacters === 'function' ? getAllCharacters() : [];
+    const targetChar = allChars.find(c => recordKey.startsWith(`rec_${c.id}_`));
+    if (targetChar && targetChar.playerName !== primaryUser) {
+      alert("⚠️ 您只能修改自己角色的 BOSS 攻略狀態！");
+      return;
+    }
+
     const record = window.store.weeklyRecords[recordKey];
     if (!record || !record.teamId) return;
 
