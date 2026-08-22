@@ -91,6 +91,21 @@ window.checkAuthAndInit = function() {
   }
 };
 
+// 檢查當前登入者是否為 Super User (管理員)
+window.isSuperUser = function() {
+  const authPlayer = getAuthenticatedPlayer();
+  if (!authPlayer || !window.config || !window.config.players) return false;
+  const player = window.config.players.find(p => p.name === authPlayer);
+  return !!(player && player.isAdmin);
+};
+
+// 檢查當前登入者是否有權限操作目標玩家 (本人 或 管理員)
+window.canManagePlayer = function(targetPlayerName) {
+  const authPlayer = getAuthenticatedPlayer();
+  if (!authPlayer) return false;
+  return authPlayer === targetPlayerName || isSuperUser();
+};
+
 // 更新頂部工具列身分資訊
 window.updateAuthHeaderUI = function() {
   const container = document.getElementById("authHeaderProfile");
@@ -101,11 +116,17 @@ window.updateAuthHeaderUI = function() {
   if (authPlayerName) {
     const player = (window.config.players || []).find(p => p.name === authPlayerName);
     const emoji = player && player.avatarEmoji ? player.avatarEmoji : '👤';
+    const isAdmin = isSuperUser();
+
+    const badgeHtml = isAdmin
+      ? `<span style="font-size: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; padding: 1px 7px; border-radius: 10px; font-weight: bold; box-shadow: 0 1px 4px rgba(245, 158, 11, 0.4);">👑 管理員</span>`
+      : `<span style="font-size: 10px; background: #3b82f6; color: #fff; padding: 1px 6px; border-radius: 10px;">主要玩家</span>`;
+
     newHtml = `
       <div style="display: flex; align-items: center; gap: 8px; background: var(--char-card-bg, #f1f5f9); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-color); font-size: 13px;">
         <span style="font-size: 16px;">${emoji}</span>
         <strong style="color: var(--text-main);">${authPlayerName}</strong>
-        <span style="font-size: 10px; background: #3b82f6; color: #fff; padding: 1px 6px; border-radius: 10px;">主要玩家</span>
+        ${badgeHtml}
         <button type="button" onclick="openChangePasswordModal()" style="background: none; border: none; font-size: 11px; color: var(--text-muted); cursor: pointer; text-decoration: underline; padding: 0 2px;">修改密碼</button>
         <span style="color: var(--border-color); font-size: 11px;">|</span>
         <button type="button" onclick="openAuthModal('login')" style="background: none; border: none; font-size: 11px; color: var(--text-muted); cursor: pointer; text-decoration: underline; padding: 0 2px;">切換玩家</button>
@@ -514,3 +535,106 @@ window.handleChangePasswordSubmit = async function(event) {
     if (submitBtn) submitBtn.disabled = false;
   }
 };
+
+// ==========================================
+// 管理員重設他人密碼功能
+// ==========================================
+let adminResetTargetPlayer = null;
+
+window.openAdminResetPasswordModal = function(targetPlayerName) {
+  if (!isSuperUser()) {
+    alert("⚠️ 只有管理員可以重設其他玩家的密碼！");
+    return;
+  }
+
+  adminResetTargetPlayer = targetPlayerName;
+  const modal = document.getElementById("adminResetPasswordModal");
+  const label = document.getElementById("adminResetPlayerLabel");
+  const input = document.getElementById("adminResetNewPwd");
+  const errBox = document.getElementById("adminResetErrorMsg");
+
+  if (label) label.innerHTML = `正在為玩家：<strong style="color: #f59e0b;">👤 ${targetPlayerName}</strong> 重設密碼`;
+  if (errBox) errBox.style.display = "none";
+  if (input) {
+    // 預設產生一組隨機 6 碼數字
+    input.value = Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  if (modal) modal.style.display = "flex";
+};
+
+window.closeAdminResetPasswordModal = function() {
+  const modal = document.getElementById("adminResetPasswordModal");
+  if (modal) modal.style.display = "none";
+  adminResetTargetPlayer = null;
+};
+
+window.generateRandomResetPassword = function() {
+  const input = document.getElementById("adminResetNewPwd");
+  if (input) {
+    input.value = Math.floor(100000 + Math.random() * 900000).toString();
+  }
+};
+
+window.handleAdminResetPasswordSubmit = async function(event) {
+  if (event) event.preventDefault();
+
+  if (!isSuperUser()) {
+    alert("⚠️ 權限不足！只有管理員可執行此操作。");
+    closeAdminResetPasswordModal();
+    return;
+  }
+
+  if (!adminResetTargetPlayer) {
+    alert("未指定目標玩家！");
+    return;
+  }
+
+  const player = (window.config.players || []).find(p => p.name === adminResetTargetPlayer);
+  if (!player) {
+    alert(`找不到玩家【${adminResetTargetPlayer}】！`);
+    return;
+  }
+
+  const input = document.getElementById("adminResetNewPwd");
+  const newPwd = input ? input.value.trim() : "";
+  const errBox = document.getElementById("adminResetErrorMsg");
+  const submitBtn = document.getElementById("adminResetSubmitBtn");
+
+  if (!newPwd || newPwd.length < 3) {
+    if (errBox) {
+      errBox.textContent = "請輸入至少 3 碼的新密碼！";
+      errBox.style.display = "block";
+    } else {
+      alert("請輸入至少 3 碼的新密碼！");
+    }
+    return;
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const newHash = await hashPassword(newPwd);
+    player.passwordHash = newHash;
+
+    if (window.db && window.dbRef && window.dbSet) {
+      const playersRef = window.dbRef(window.db, '/players');
+      await window.dbSet(playersRef, window.config.players);
+    }
+
+    const resetName = adminResetTargetPlayer;
+    closeAdminResetPasswordModal();
+    alert(`🎉 成功將【${resetName}】的密碼重設為：\n\n👉 ${newPwd}\n\n請將此新密碼告知該玩家進行登入！`);
+  } catch (err) {
+    console.error("管理員重設密碼失敗：", err);
+    if (errBox) {
+      errBox.textContent = "重設密碼失敗，請檢查網路連線！";
+      errBox.style.display = "block";
+    } else {
+      alert("重設密碼失敗，請檢查網路連線！");
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+};
+

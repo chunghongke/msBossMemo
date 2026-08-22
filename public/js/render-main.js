@@ -74,6 +74,9 @@ function renderApp() {
       shardByCharId.set(c.id, calculateCharacterShard(c));
     });
 
+    const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
+    const canManagePlayerCard = isPrimary || isAdmin;
+
     let playerHTML = `
       <div class="player-card ${isPrimary ? 'primary-player' : ''} ${isCollapsed ? 'is-collapsed' : ''}" 
           id="player-card-${playerId}" 
@@ -81,13 +84,21 @@ function renderApp() {
           data-player-name="${p.name}"
           data-collapse-key="${p.name}">
         <div class="player-header" onclick="togglePlayerCollapse('${playerId}')">
-          <span>
-            ${isPrimary 
+          <span style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            ${canManagePlayerCard 
               ? `<span class="player-avatar-btn" onclick="event.stopPropagation(); openAvatarPickerModal('${p.name.replace(/'/g, "\\\\'")}')" title="點擊更換頭像">${p.avatarEmoji || '👤'}</span>`
               : `<span style="font-size: 16px; margin-right: 4px;">${p.avatarEmoji || '👤'}</span>`
             }
-            玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}
-            ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:8px; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
+            <span>玩家：${p.name} ${isPrimary ? ' ⭐ (自己)' : ''}</span>
+            ${isAdmin && !isPrimary ? `
+              <button type="button" class="btn btn-secondary" 
+                style="font-size: 11px; padding: 2px 7px; border-color: rgba(245, 158, 11, 0.4); color: #f59e0b; background: rgba(245, 158, 11, 0.08);" 
+                onclick="event.stopPropagation(); openAdminResetPasswordModal('${p.name.replace(/'/g, "\\\\'")}')" 
+                title="管理員重設該玩家密碼">
+                🔑 重設密碼
+              </button>
+            ` : ''}
+            ${playerExpectedTotal > 0 ? `<span style="font-size:12px; font-weight:normal; color:#eab308; margin-left:4px; display:inline-flex; align-items:center; gap:2px;"><img class="crystal-icon" src="./crystal-icon.png" alt="結晶" /> ${formatCrystal(playerEarnedTotal)} / ${formatCrystal(playerExpectedTotal)}</span>` : ''}
           </span>
           <span class="collapse-icon" id="collapse-icon-${playerId}">${isCollapsed ? '▲ 展開' : '▼ 收合'}</span>
         </div>
@@ -110,9 +121,10 @@ function renderApp() {
         const charShard = shardByCharId.get(c.id) || { earned: 0, expected: 0 };
 
         const isOwner = (p.name === primaryUser);
+        const canManage = isOwner || isAdmin;
 
         playerHTML += `
-          <div class="character-card" draggable="${isOwner ? 'true' : 'false'}" data-char-id="${c.id}" data-player-name="${p.name}">
+          <div class="character-card" draggable="${canManage ? 'true' : 'false'}" data-char-id="${c.id}" data-player-name="${p.name}">
             <div class="char-header">
               <div class="char-title" style="display: flex; align-items: center; gap: 6px;">
                 ${c.characterImage
@@ -122,18 +134,18 @@ function renderApp() {
                     </span>`
                   : '⚔️'}
                 ${c.name}
-                ${isOwner ? `
+                ${canManage ? `
                   <button class="btn-icon" 
                           onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')" 
-                          title="編輯角色的 BOSS 清單"
+                          title="${isOwner ? '編輯角色的 BOSS 清單' : '編輯角色的 BOSS 清單 (管理員操作)'}"
                           style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
                           onmouseover="this.style.background='#e2e8f0'" 
                           onmouseout="this.style.background='transparent'">
                     ✏️
                   </button>
                   <button class="btn-icon"
-                          onclick="event.stopPropagation(); openRenameCharModal('${c.id}', '${c.name.replace(/'/g, "\\\\'")}')"
-                          title="修改角色名稱"
+                          onclick="event.stopPropagation(); openRenameCharModal('${c.id}', '${c.name.replace(/'/g, "\\\\'")}')" 
+                          title="${isOwner ? '修改角色名稱' : '修改角色名稱 (管理員操作)'}"
                           style="background: transparent; border: none; cursor: pointer; padding: 2px 4px; font-size: 12px; color: #64748b; border-radius: 4px; line-height: 1;"
                           onmouseover="this.style.background='#e2e8f0'"
                           onmouseout="this.style.background='transparent'">
@@ -248,8 +260,8 @@ function renderApp() {
                     const currentQty = hasChosen ? record.shardQuantity : "?";
                     shardTagHtml = `
                       <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
-                          ${isOwner ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片！')"`}
-                          title="${isOwner ? '設定這次撿取的艾里溫碎片數量' : '艾里溫碎片數量（唯讀）'}">
+                          ${canManage ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片！')"`}
+                          title="${canManage ? '設定這次撿取的艾里溫碎片數量' : '艾里溫碎片數量（唯讀）'}">
                         <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentQty}/${totalShards}個
                       </div>
                     `;
@@ -258,8 +270,8 @@ function renderApp() {
                     const currentShares = hasChosen ? record.shardShares : "?";
                     shardTagHtml = `
                       <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
-                          ${isOwner ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片份數！')"`}
-                          title="${isOwner ? '設定這次撿取的艾里溫碎片份數' : '艾里溫碎片份數（唯讀）'}">
+                          ${canManage ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片份數！')"`}
+                          title="${canManage ? '設定這次撿取的艾里溫碎片份數' : '艾里溫碎片份數（唯讀）'}">
                         <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentShares}/${maxPartySize}份
                       </div>
                     `;
@@ -287,14 +299,14 @@ function renderApp() {
                 html: `
                 <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'} ${entry === 2 ? 'cross-diff-reset' : ''}"
                     data-record-key="${recordKey}"
-                    style="${isOwner ? '' : 'cursor: default;'}"
-                    onclick="${isOwner ? `toggleBossStatus('${recordKey}')` : `alert('⚠️ 您只能修改自己角色的 BOSS 攻略狀態！')`}"
-                    oncontextmenu="${isOwner ? `openPartyModal(event, '${c.id}', '${boss.id}', ${entry})` : `event.preventDefault(); alert('⚠️ 只能由角色擁有者編輯隊伍成員！')`}"
-                    ontouchstart="${isOwner ? `handleCellTouchStart(event, '${c.id}', '${boss.id}', ${entry})` : ``}"
+                    style="${canManage ? '' : 'cursor: default;'}"
+                    onclick="${canManage ? `toggleBossStatus('${recordKey}')` : `alert('⚠️ 您只能修改自己角色的 BOSS 攻略狀態！')`}"
+                    oncontextmenu="${canManage ? `openPartyModal(event, '${c.id}', '${boss.id}', ${entry})` : `event.preventDefault(); alert('⚠️ 只能由角色擁有者或管理員編輯隊伍成員！')`}"
+                    ontouchstart="${canManage ? `handleCellTouchStart(event, '${c.id}', '${boss.id}', ${entry})` : ``}"
                     ontouchmove="handleCellTouchMove(event)"
                     ontouchend="handleCellTouchEnd(event)"
                     ontouchcancel="handleCellTouchEnd(event)"
-                    title="${cellTitle}${isOwner ? '' : ' (唯讀)'}">
+                    title="${cellTitle}${canManage ? '' : ' (唯讀)'}">
                   ${shardTagHtml}
                   ${scheduleTagHtml}
                   <div class="boss-name">${bossDisplayName}</div>
@@ -310,11 +322,11 @@ function renderApp() {
           playerHTML += `
             <div style="grid-column: 1 / -1; padding: 22px 16px; text-align: center; background: var(--bg-hover, rgba(0,0,0,0.03)); border: 1px dashed var(--border-color); border-radius: 8px; margin: 4px 0;">
               <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 8px;">⚠️ 尚未設定此角色要挑戰的 BOSS 清單</div>
-              ${isOwner ? `
+              ${canManage ? `
                 <button class="btn" style="font-size: 12px; padding: 4px 14px;" onclick="event.stopPropagation(); openEditCharBossesModal('${c.id}')">
                   ✏️ 立即設定 BOSS 清單
                 </button>
-              ` : `<span style="font-size: 12px; color: var(--text-muted);">（需由角色擁有者設定）</span>`}
+              ` : `<span style="font-size: 12px; color: var(--text-muted);">（需由角色擁有者或管理員設定）</span>`}
             </div>
           `;
         } else {

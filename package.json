@@ -1,4 +1,13 @@
 {
+  "scripts": {
+    "help": "node firebase-backup/help.js",
+    "set-admin": "node firebase-backup/set-admin-player.js",
+    "backup": "node firebase-backup/backup.js",
+    "sync-images": "node firebase-backup/update-character-images.js",
+    "update-crystals": "node firebase-backup/update-boss-crystals.js",
+    "init-passwords": "node firebase-backup/init-player-passwords.js",
+    "cleanup": "node firebase-backup/cleanup.js"
+  },
   "dependencies": {
     "firebase-tools": "^15.24.0"
   }

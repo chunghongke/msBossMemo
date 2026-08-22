@@ -23,7 +23,8 @@
 
     const allChars = typeof getAllCharacters === 'function' ? getAllCharacters() : [];
     const targetChar = allChars.find(c => recordKey.startsWith(`rec_${c.id}_`));
-    if (targetChar && targetChar.playerName !== primaryUser) {
+    const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
+    if (targetChar && targetChar.playerName !== primaryUser && !isAdmin) {
       alert("⚠️ 您只能修改自己角色的 BOSS 攻略狀態！");
       return;
     }

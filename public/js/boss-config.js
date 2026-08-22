@@ -38,8 +38,9 @@ window.openResetConfigModal = function() {
     return;
   }
 
+  const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
   const allChars = getAllCharacters();
-  const targetChars = allChars.filter(c => c.playerName === primaryUser);
+  const targetChars = isAdmin ? allChars : allChars.filter(c => c.playerName === primaryUser);
 
   if (targetChars.length > 0) {
     const exists = targetChars.some(c => c.id === currentResetCharId);
@@ -65,8 +66,9 @@ function renderResetModalBody() {
 
   const resetableBosses = (window.config.bosses || []).filter(b => b.allowReset);
   const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+  const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
   const allChars = getAllCharacters();
-  const targetChars = allChars.filter(c => c.playerName === primaryUser);
+  const targetChars = isAdmin ? allChars : allChars.filter(c => c.playerName === primaryUser);
 
   if (targetChars.length === 0) {
     modalBody.innerHTML = `<div style="text-align:center; padding: 30px; color: var(--text-muted);">⚠️ 尚未為玩家「${primaryUser}」建立任何角色，請先新增角色！</div>`;
@@ -80,8 +82,10 @@ function renderResetModalBody() {
     currentResetCharId = currentChar.id;
   }
 
-  const hintText = `目前正在設定主要玩家「${primaryUser}」的角色重置券`;
-  const hintColor = "var(--text-muted)";
+  const hintText = isAdmin 
+    ? `👑 管理員模式：正在設定【${currentChar.playerName}】的角色「${currentChar.name}」重置券`
+    : `目前正在設定主要玩家「${primaryUser}」的角色重置券`;
+  const hintColor = isAdmin ? "#f59e0b" : "var(--text-muted)";
 
   let tabsHtml = `
     <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center;">
@@ -92,12 +96,13 @@ function renderResetModalBody() {
     const rCount = c.resetBossIds ? c.resetBossIds.length : 0;
     const tabActiveStyle = `background: #3b82f6; color: #fff; border: 1px solid #3b82f6; font-weight: bold; box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);`;
     const tabInactiveStyle = `background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); opacity: 0.85;`;
+    const label = isAdmin ? `👤 ${c.name} (${c.playerName})` : `👤 ${c.name}`;
 
     tabsHtml += `
       <button type="button"
         onclick="selectResetCharTab('${c.id}')"
         style="padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; ${isTabActive ? tabActiveStyle : tabInactiveStyle}">
-        👤 ${c.name} ${rCount > 0 ? `<span style="background: ${isTabActive ? '#1e3a8a' : '#f59e0b'}; color:#fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px;">🎟️ ${rCount}</span>` : ''}
+        ${label} ${rCount > 0 ? `<span style="background: ${isTabActive ? '#1e3a8a' : '#f59e0b'}; color:#fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px;">🎟️ ${rCount}</span>` : ''}
       </button>
     `;
   });

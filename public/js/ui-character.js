@@ -26,9 +26,17 @@ window.openAddCharacterModal = function() {
 
   nameInput.value = "";
 
-  // 鎖定只能為當前登入的主要玩家新增角色
-  playerSelect.innerHTML = `<option value="${primaryUser}" selected>👤 ${primaryUser} (自己)</option>`;
-  playerSelect.disabled = true;
+  // 依身分控制玩家下拉選單：管理員可選所有人，一般玩家鎖定自己
+  const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
+  if (isAdmin) {
+    playerSelect.disabled = false;
+    playerSelect.innerHTML = (window.config.players || []).map(p => 
+      `<option value="${p.name}" ${p.name === primaryUser ? 'selected' : ''}>👤 ${p.name} ${p.name === primaryUser ? '(自己)' : ''}</option>`
+    ).join('');
+  } else {
+    playerSelect.innerHTML = `<option value="${primaryUser}" selected>👤 ${primaryUser} (自己)</option>`;
+    playerSelect.disabled = true;
+  }
 
   bossListContainer.innerHTML = "";
 
@@ -232,7 +240,8 @@ window.openRenameCharModal = function(charId, currentName) {
   const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
   const allChars = typeof getAllCharacters === 'function' ? getAllCharacters() : [];
   const char = allChars.find(c => c.id === charId);
-  if (!char || char.playerName !== primaryUser) {
+  const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
+  if (!char || (char.playerName !== primaryUser && !isAdmin)) {
     alert("⚠️ 您只能修改自己角色的名稱！");
     return;
   }
@@ -312,7 +321,8 @@ window.openEditCharBossesModal = function(charId) {
   const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
   const allChars = typeof getAllCharacters === 'function' ? getAllCharacters() : [];
   const char = allChars.find(c => c.id === charId);
-  if (!char || char.playerName !== primaryUser) {
+  const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
+  if (!char || (char.playerName !== primaryUser && !isAdmin)) {
     alert("⚠️ 您只能編輯自己角色的 BOSS 清單！");
     return;
   }
