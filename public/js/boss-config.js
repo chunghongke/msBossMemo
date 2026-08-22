@@ -9,6 +9,7 @@
  *   - closeResetConfigModal()
  */
 
+let currentResetPlayerName = null;
 let currentResetCharId = null;
 
 // 取得難度色彩輔助函式（優先使用全域 window.getDifficultyColor）
@@ -39,8 +40,16 @@ window.openResetConfigModal = function() {
   }
 
   const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
+  if (isAdmin) {
+    if (!currentResetPlayerName || !(window.config.players || []).some(p => p.name === currentResetPlayerName)) {
+      currentResetPlayerName = primaryUser;
+    }
+  } else {
+    currentResetPlayerName = primaryUser;
+  }
+
   const allChars = getAllCharacters();
-  const targetChars = isAdmin ? allChars : allChars.filter(c => c.playerName === primaryUser);
+  const targetChars = allChars.filter(c => c.playerName === currentResetPlayerName);
 
   if (targetChars.length > 0) {
     const exists = targetChars.some(c => c.id === currentResetCharId);
@@ -53,6 +62,14 @@ window.openResetConfigModal = function() {
 
   renderResetModalBody();
   document.getElementById("resetModal").style.display = "flex";
+};
+
+window.selectResetPlayerTab = function(playerName) {
+  currentResetPlayerName = playerName;
+  const allChars = getAllCharacters();
+  const playerChars = allChars.filter(c => c.playerName === playerName);
+  currentResetCharId = playerChars.length > 0 ? playerChars[0].id : null;
+  renderResetModalBody();
 };
 
 window.selectResetCharTab = function(charId) {
@@ -68,10 +85,44 @@ function renderResetModalBody() {
   const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
   const isAdmin = typeof isSuperUser === 'function' && isSuperUser();
   const allChars = getAllCharacters();
-  const targetChars = isAdmin ? allChars : allChars.filter(c => c.playerName === primaryUser);
+
+  const activePlayerName = currentResetPlayerName || primaryUser;
+  const targetChars = allChars.filter(c => c.playerName === activePlayerName);
+
+  // 1. 管理員專屬：玩家選擇器
+  let playerSelectorHtml = "";
+  if (isAdmin) {
+    playerSelectorHtml = `
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; padding: 8px 12px; background: var(--char-card-bg, rgba(0,0,0,0.03)); border: 1px solid var(--border-color); border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; font-weight: bold; color: #f59e0b; display: flex; align-items: center; gap: 4px;">
+            👑 目標玩家：
+          </span>
+          <select onchange="selectResetPlayerTab(this.value)" 
+            style="padding: 4px 10px; font-size: 13px; font-weight: bold; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); cursor: pointer;">
+            ${(window.config.players || []).map(p => {
+              const charCount = p.characters ? p.characters.length : 0;
+              const isSelected = p.name === activePlayerName;
+              const isSelf = p.name === primaryUser ? ' (自己)' : '';
+              return `<option value="${p.name}" ${isSelected ? 'selected' : ''}>${p.avatarEmoji || '👤'} ${p.name}${isSelf} — ${charCount} 隻角色</option>`;
+            }).join('')}
+          </select>
+        </div>
+        <span style="font-size: 11px; color: var(--text-muted);">
+          💡 管理員可切換為不同玩家設定重置券
+        </span>
+      </div>
+    `;
+  }
 
   if (targetChars.length === 0) {
-    modalBody.innerHTML = `<div style="text-align:center; padding: 30px; color: var(--text-muted);">⚠️ 尚未為玩家「${primaryUser}」建立任何角色，請先新增角色！</div>`;
+    modalBody.innerHTML = `
+      ${playerSelectorHtml}
+      <div style="text-align:center; padding: 35px 20px; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: 8px; margin-top: 8px;">
+        <div style="font-size: 26px; margin-bottom: 6px;">👤</div>
+        <div>玩家「${activePlayerName}」目前尚未建立任何角色。</div>
+      </div>
+    `;
     return;
   }
 
@@ -87,7 +138,9 @@ function renderResetModalBody() {
     : `目前正在設定主要玩家「${primaryUser}」的角色重置券`;
   const hintColor = isAdmin ? "#f59e0b" : "var(--text-muted)";
 
+  // 2. 角色頁籤膠囊按鈕
   let tabsHtml = `
+    ${playerSelectorHtml}
     <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center;">
   `;
 
@@ -96,13 +149,12 @@ function renderResetModalBody() {
     const rCount = c.resetBossIds ? c.resetBossIds.length : 0;
     const tabActiveStyle = `background: #3b82f6; color: #fff; border: 1px solid #3b82f6; font-weight: bold; box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);`;
     const tabInactiveStyle = `background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); opacity: 0.85;`;
-    const label = isAdmin ? `👤 ${c.name} (${c.playerName})` : `👤 ${c.name}`;
 
     tabsHtml += `
       <button type="button"
         onclick="selectResetCharTab('${c.id}')"
         style="padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; ${isTabActive ? tabActiveStyle : tabInactiveStyle}">
-        ${label} ${rCount > 0 ? `<span style="background: ${isTabActive ? '#1e3a8a' : '#f59e0b'}; color:#fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px;">🎟️ ${rCount}</span>` : ''}
+        👤 ${c.name} ${rCount > 0 ? `<span style="background: ${isTabActive ? '#1e3a8a' : '#f59e0b'}; color:#fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px;">🎟️ ${rCount}</span>` : ''}
       </button>
     `;
   });
