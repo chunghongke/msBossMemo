@@ -27,19 +27,20 @@ function playBossCellReorderAnimation(container, oldPositions) {
 
     if (dx === 0 && dy === 0) return;
 
+    // 1. 先瞬間移回原位置
     cell.style.transition = "none";
     cell.style.transform = `translate(${dx}px, ${dy}px)`;
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        cell.style.transition = "transform 0.3s ease";
-        cell.style.transform = "";
-      });
-    });
+    // 2. 強制瀏覽器即時計算樣式 (Reflow)，消除 requestAnimationFrame 造成的額外延遲
+    void cell.offsetHeight;
+
+    // 3. 瞬間套用平滑移動過渡，滑向最終位置 (0.22s 靈敏順暢曲線)
+    cell.style.transition = "transform 0.22s cubic-bezier(0.2, 0, 0, 1)";
+    cell.style.transform = "";
 
     cell.addEventListener("transitionend", function cleanup() {
       cell.style.transition = "";
       cell.removeEventListener("transitionend", cleanup);
-    });
+    }, { once: true });
   });
 }

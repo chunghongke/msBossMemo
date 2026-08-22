@@ -13,8 +13,8 @@
  *   - schedule.js（loadPartyScheduleIntoForm、readPartyScheduleFromForm）
  */
 
-  function toggleBossStatus(recordKey) {
-    const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
+window.toggleBossStatus = function(recordKey) {
+  const primaryUser = typeof getPrimaryUser === 'function' ? getPrimaryUser() : '';
     if (!primaryUser) {
       alert("⚠️ 請先選擇/登入主要玩家！");
       if (typeof openAuthModal === 'function') openAuthModal();

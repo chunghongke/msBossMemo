@@ -16,8 +16,6 @@ function renderApp() {
 
   const oldBossCellPositions = captureBossCellPositions(container);
 
-  container.innerHTML = "";
-
   if (!window.config.players || !Array.isArray(window.config.players) || window.config.players.length === 0) {
     container.innerHTML = `<div style="text-align:center; padding: 40px; color: #64748b;">⚠️ 未讀取到玩家設定檔</div>`;
     return;
@@ -40,6 +38,8 @@ function renderApp() {
     if (indexB !== -1) return 1;
     return 0;
   });
+
+  let allPlayersHTML = "";
 
   sortedPlayers.forEach((p, pIdx) => {
     const playerId = `p_${pIdx}`;
@@ -260,7 +260,8 @@ function renderApp() {
                     const currentQty = hasChosen ? record.shardQuantity : "?";
                     shardTagHtml = `
                       <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
-                          ${canManage ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片！')"`}
+                          data-shard-action="${canManage ? 'edit' : 'none'}"
+                          data-record-key="${recordKey}"
                           title="${canManage ? '設定這次撿取的艾里溫碎片數量' : '艾里溫碎片數量（唯讀）'}">
                         <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentQty}/${totalShards}個
                       </div>
@@ -270,7 +271,8 @@ function renderApp() {
                     const currentShares = hasChosen ? record.shardShares : "?";
                     shardTagHtml = `
                       <div class="shard-tag ${hasChosen ? '' : 'unpicked'}"
-                          ${canManage ? `onclick="event.stopPropagation(); openShardShareModal('${recordKey}')"` : `onclick="event.stopPropagation(); alert('⚠️ 您只能修改自己角色的艾里溫碎片份數！')"`}
+                          data-shard-action="${canManage ? 'edit' : 'none'}"
+                          data-record-key="${recordKey}"
                           title="${canManage ? '設定這次撿取的艾里溫碎片份數' : '艾里溫碎片份數（唯讀）'}">
                         <img class="shard-icon" src="./shard-icon.png" alt="碎片" />${currentShares}/${maxPartySize}份
                       </div>
@@ -287,7 +289,8 @@ function renderApp() {
                 const scheduleFormatted = formatScheduleDisplay(effectiveSchedule);
                 scheduleTagHtml = `
                   <div class="schedule-tag ${isTemp ? 'temp' : ''} ${isCompleted ? 'completed' : ''}"
-                       onclick="event.stopPropagation(); showTeamScheduleInfo('${team.id}', '${boss.name}')"
+                       data-schedule-team-id="${team.id}"
+                       data-schedule-boss-name="${boss.name.replace(/"/g, '&quot;')}"
                        title="${isTemp ? '⚡ 本週臨時時間' : '📅 常態出團時間'}：${scheduleFormatted}（點擊查看詳情）">
                     ${tagIcon}
                   </div>
@@ -297,15 +300,12 @@ function renderApp() {
               bossCellEntries.push({
                 isCompleted,
                 html: `
-                <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'} ${entry === 2 ? 'cross-diff-reset' : ''}"
+                <div class="boss-cell ${isCompleted ? 'completed' : 'not-completed'} ${entry === 2 ? 'cross-diff-reset' : ''} ${canManage ? 'is-editable' : 'readonly'}"
                     data-record-key="${recordKey}"
-                    style="${canManage ? '' : 'cursor: default;'}"
-                    onclick="${canManage ? `toggleBossStatus('${recordKey}')` : `alert('⚠️ 您只能修改自己角色的 BOSS 攻略狀態！')`}"
-                    oncontextmenu="${canManage ? `openPartyModal(event, '${c.id}', '${boss.id}', ${entry})` : `event.preventDefault(); alert('⚠️ 只能由角色擁有者或管理員編輯隊伍成員！')`}"
-                    ontouchstart="${canManage ? `handleCellTouchStart(event, '${c.id}', '${boss.id}', ${entry})` : ``}"
-                    ontouchmove="handleCellTouchMove(event)"
-                    ontouchend="handleCellTouchEnd(event)"
-                    ontouchcancel="handleCellTouchEnd(event)"
+                    data-char-id="${c.id}"
+                    data-boss-id="${boss.id}"
+                    data-entry="${entry}"
+                    ${canManage ? 'data-editable="true"' : ''}
                     title="${cellTitle}${canManage ? '' : ' (唯讀)'}">
                   ${shardTagHtml}
                   ${scheduleTagHtml}
@@ -348,13 +348,108 @@ function renderApp() {
       </div>
     `;
 
-    container.innerHTML += playerHTML;
+    allPlayersHTML += playerHTML;
   });
+
+  container.innerHTML = allPlayersHTML;
+  window.lastOptimisticRenderTime = Date.now();
 
   renderGuestSection();
   updateResetTimer();
   initDragAndDrop();
+  initBossGridDelegation();
   playBossCellReorderAnimation(container, oldBossCellPositions);
+}
+
+let isBossGridDelegationInitialized = false;
+
+// ==========================================
+// 方案 B：BOSS 卡片外層單一事件委派監聽器 (Event Delegation)
+// ==========================================
+function initBossGridDelegation() {
+  const container = document.getElementById("characterList");
+  if (!container || isBossGridDelegationInitialized) return;
+  isBossGridDelegationInitialized = true;
+
+  // 1. Click 事件委派
+  container.addEventListener("click", (e) => {
+    // 若手機長按剛觸發過彈窗，略過本次 click
+    if (typeof isLongPressFired === "function" && isLongPressFired()) {
+      clearLongPressFired();
+      return;
+    }
+
+    // A. 檢查是否點擊在 .shard-tag 上
+    const shardTag = e.target.closest(".shard-tag");
+    if (shardTag) {
+      if (shardTag.dataset.shardAction === "edit" && shardTag.dataset.recordKey) {
+        openShardShareModal(shardTag.dataset.recordKey);
+      }
+      return;
+    }
+
+    // B. 檢查是否點擊在 .schedule-tag 上
+    const scheduleTag = e.target.closest(".schedule-tag");
+    if (scheduleTag) {
+      const teamId = scheduleTag.dataset.scheduleTeamId;
+      const bossName = scheduleTag.dataset.scheduleBossName;
+      if (teamId && typeof showTeamScheduleInfo === "function") {
+        showTeamScheduleInfo(teamId, bossName);
+      }
+      return;
+    }
+
+    // C. 檢查是否點擊在 .boss-cell 卡片本身
+    const cell = e.target.closest(".boss-cell");
+    if (cell && cell.dataset.editable === "true" && cell.dataset.recordKey) {
+      toggleBossStatus(cell.dataset.recordKey);
+    }
+  });
+
+  // 2. 右鍵選單 (contextmenu) 事件委派 -> 開啟組隊編輯
+  container.addEventListener("contextmenu", (e) => {
+    const cell = e.target.closest(".boss-cell");
+    if (cell) {
+      e.preventDefault();
+      if (cell.dataset.editable === "true") {
+        const charId = cell.dataset.charId;
+        const bossId = cell.dataset.bossId;
+        const entry = parseInt(cell.dataset.entry, 10) || 1;
+        if (typeof openPartyModal === "function") {
+          openPartyModal(e, charId, bossId, entry);
+        }
+      }
+    }
+  });
+
+  // 3. 移動端觸控長按 (Touch Events) 事件委派
+  container.addEventListener("touchstart", (e) => {
+    const cell = e.target.closest(".boss-cell[data-editable='true']");
+    if (cell && typeof handleCellTouchStart === "function") {
+      const charId = cell.dataset.charId;
+      const bossId = cell.dataset.bossId;
+      const entry = parseInt(cell.dataset.entry, 10) || 1;
+      handleCellTouchStart(e, charId, bossId, entry, cell);
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchmove", (e) => {
+    if (typeof handleCellTouchMove === "function") {
+      handleCellTouchMove(e);
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchend", (e) => {
+    if (typeof handleCellTouchEnd === "function") {
+      handleCellTouchEnd(e);
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchcancel", (e) => {
+    if (typeof handleCellTouchEnd === "function") {
+      handleCellTouchEnd(e);
+    }
+  }, { passive: true });
 }
 
 window.showTeamScheduleInfo = function(teamId, bossName) {

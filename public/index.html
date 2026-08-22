@@ -52,6 +52,12 @@
       ensureDefaultSingleTeams();
       if (weeklyResetHappened) saveStoreToCloud();
       if (typeof checkAuthAndInit === 'function') checkAuthAndInit();
+
+      // ⚡ 若剛在 400ms 內執行過本地樂觀即時渲染，跳過此處雲端回傳的二次重繪，避免中斷 FLIP 動畫
+      if (window.lastOptimisticRenderTime && (Date.now() - window.lastOptimisticRenderTime < 400)) {
+        return;
+      }
+
       renderApp();
     });
   </script>

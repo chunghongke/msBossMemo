@@ -391,6 +391,10 @@
       position: relative;
     }
 
+    .boss-cell.readonly {
+      cursor: default;
+    }
+
     .boss-cell.long-press-active {
       transform: scale(0.96);
       opacity: 0.75;

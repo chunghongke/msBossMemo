@@ -17,14 +17,11 @@ let longPressTimer = null;
 let longPressFired = false;
 let longPressStartPos = null;
 let longPressCellEl = null;
-const LONG_PRESS_DURATION = 500; // ms
-const LONG_PRESS_MOVE_TOLERANCE = 10; // px
-
-function handleCellTouchStart(event, charId, bossId, entryIndex) {
+window.handleCellTouchStart = function(event, charId, bossId, entryIndex, cellEl) {
   if (event.touches.length !== 1) return;
   longPressFired = false;
   longPressStartPos = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-  longPressCellEl = event.currentTarget;
+  longPressCellEl = cellEl || event.currentTarget || (event.target ? event.target.closest('.boss-cell') : null);
 
   clearTimeout(longPressTimer);
   longPressTimer = setTimeout(() => {
@@ -33,30 +30,34 @@ function handleCellTouchStart(event, charId, bossId, entryIndex) {
     if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(15);
     openPartyModal(event, charId, bossId, entryIndex);
   }, LONG_PRESS_DURATION);
-}
+};
 
-function handleCellTouchMove(event) {
+window.handleCellTouchMove = function(event) {
   if (!longPressStartPos || event.touches.length !== 1) return;
   const dx = Math.abs(event.touches[0].clientX - longPressStartPos.x);
   const dy = Math.abs(event.touches[0].clientY - longPressStartPos.y);
   if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
     clearTimeout(longPressTimer);
   }
-}
+};
 
-function handleCellTouchEnd(event) {
+window.handleCellTouchEnd = function(event) {
   clearTimeout(longPressTimer);
   if (longPressCellEl) longPressCellEl.classList.remove('long-press-active');
-  if (longPressFired) {
-    // 長按已經開啟過 modal，阻止接下來的 click 事件觸發 toggleBossStatus
-    event.preventDefault();
-  }
   longPressCellEl = null;
   longPressStartPos = null;
-}
+};
 
-function openPartyModal(event, charId, bossId, entryIndex) {
-  event.preventDefault();
+window.isLongPressFired = function() {
+  return longPressFired;
+};
+
+window.clearLongPressFired = function() {
+  longPressFired = false;
+};
+
+window.openPartyModal = function(event, charId, bossId, entryIndex) {
+  if (event && event.preventDefault) event.preventDefault();
   editingCharId = charId;
   editingBossId = bossId;
   editingEntry = entryIndex;
@@ -195,6 +196,7 @@ function savePartyTeam() {
   finalTargets.forEach(target => {
     if (target.charId.startsWith("guest_")) return;
     const recKey = `rec_${target.charId}_${editingBossId}_${target.entryIndex}`;
+    const oldRecord = window.store.weeklyRecords ? window.store.weeklyRecords[recKey] : null;
     window.store.weeklyRecords[recKey] = {
       charId: target.charId,
       bossId: editingBossId,
